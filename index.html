@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="zh-Hant-TW" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#ffffff" />
+  <title>T map v1.02｜臺灣行政區互動拼圖</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main id="app" class="app-shell" aria-live="polite">
+    <section id="screen-home" class="screen is-active" aria-labelledby="home-title">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">T map v1.02</p>
+          <h1 id="home-title">臺灣行政區互動拼圖</h1>
+          <p class="subtitle">先拼出臺灣，再探索 22 縣市裡的鄉鎮市區。</p>
+        </div>
+        <div class="toolbar"><button class="button ghost theme-toggle" type="button" data-action="toggle-theme" aria-label="切換深色或淺色主題">🌙 深色</button><button class="button ghost" type="button" data-action="open-help">操作說明</button></div>
+      </header>
+
+      <div class="hero-grid">
+        <section class="hero-card">
+          <div class="taiwan-mark" aria-hidden="true">TW</div>
+          <h2>從一塊拼圖開始認識臺灣</h2>
+          <p>點一下可以辨識名稱，拖曳到正確位置就會自動吸附。澎湖、金門、連江另以放大框呈現。</p>
+          <div class="primary-actions">
+            <button class="button primary" type="button" data-action="start-taiwan">開始拼臺灣縣市</button>
+            <button class="button" type="button" data-action="continue">繼續上次進度</button>
+            <button class="button" type="button" data-action="open-explorer">自由選擇縣市</button>
+          </div>
+        </section>
+
+        <aside class="settings-card" aria-labelledby="settings-title">
+          <h2 id="settings-title">學習設定</h2>
+          <label class="switch-row"><span>🔊 點選時朗讀名稱</span><input id="setting-speech" type="checkbox" checked /></label>
+          <label class="switch-row"><span>🏷 顯示行政區名稱</span><input id="setting-labels" type="checkbox" checked /></label>
+          <label class="switch-row"><span>🧲 啟用吸附提示</span><input id="setting-snap" type="checkbox" checked /></label>
+          <label class="switch-row"><span>🎉 完成慶祝音效</span><input id="setting-effects" type="checkbox" checked /></label>
+          <label class="setting-row"><span>🎨 畫面主題</span><select id="setting-theme" aria-label="畫面主題"><option value="light">淺色</option><option value="dark">深色</option></select></label>
+          <div class="progress-summary">
+            <p><strong>臺灣縣市拼圖</strong><span id="home-county-progress">0 / 22</span></p>
+            <p><strong>完成縣市探索</strong><span id="home-town-progress">0 / 22</span></p>
+          </div>
+        </aside>
+      </div>
+
+      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.02</footer>
+    </section>
+
+    <section id="screen-taiwan" class="screen" aria-labelledby="taiwan-title">
+      <header class="topbar compact">
+        <div>
+          <p class="eyebrow">T map v1.02 / 第一層</p>
+          <h1 id="taiwan-title">臺灣 22 縣市拼圖</h1>
+        </div>
+        <div class="toolbar">
+          <button class="button ghost" type="button" data-action="go-home">← 首頁</button>
+          <button class="button ghost theme-toggle" type="button" data-action="toggle-theme">🌙 深色</button>
+          <button class="button ghost" type="button" data-action="reset-taiwan">重玩</button>
+          <button class="button ghost" type="button" data-action="open-help">說明</button>
+        </div>
+      </header>
+
+      <div class="statusbar">
+        <button id="taiwan-speech" class="chip" type="button"></button>
+        <button id="taiwan-labels" class="chip" type="button"></button>
+        <button id="taiwan-snap" class="chip" type="button"></button>
+        <strong id="taiwan-progress">完成 0 / 22</strong>
+      </div>
+
+      <div class="puzzle-layout">
+        <aside class="piece-panel">
+          <div class="panel-heading">
+            <h2>拼圖片區</h2>
+            <span id="taiwan-remaining">22 塊</span>
+          </div>
+          <p class="hint">可拖曳；也可先點拼圖，再點地圖位置。</p>
+          <div id="taiwan-piece-list" class="piece-list"></div>
+        </aside>
+
+        <section class="map-panel">
+          <div class="panel-heading">
+            <h2>臺灣輪廓</h2>
+            <span id="selected-name" class="selected-name">尚未選取</span>
+          </div>
+          <div id="taiwan-map-stage" class="taiwan-stage">
+            <div class="main-map-box">
+              <svg id="taiwan-main-map" class="map-svg" viewBox="0 0 560 720" role="img" aria-label="臺灣本島縣市拼圖目標區"></svg>
+            </div>
+            <div class="island-grid">
+              <div class="island-box"><span>澎湖縣</span><svg id="inset-penghu" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span>金門縣</span><svg id="inset-kinmen" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span>連江縣</span><svg id="inset-lienchiang" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+            </div>
+            <p class="scale-note">※ 澎湖、金門、連江為放大顯示，不與臺灣本島同比例。</p>
+          </div>
+          <div id="taiwan-feedback" class="feedback" role="status">拖曳拼圖到正確位置，或點選拼圖聆聽名稱。</div>
+        </section>
+      </div>
+    </section>
+
+    <section id="screen-complete" class="screen" aria-labelledby="complete-title">
+      <div class="completion-card">
+        <div class="celebration" aria-hidden="true">🎉</div>
+        <p class="eyebrow">T map v1.02</p>
+        <h1 id="complete-title">臺灣縣市拼圖完成！</h1>
+        <p class="completion-lead">你已完成 22 / 22 個縣市。接下來可以把每一個縣市繼續拆開，探索其中的鄉、鎮、市、區。</p>
+        <div id="complete-map" class="complete-map"></div>
+        <div class="primary-actions centered">
+          <button class="button primary" type="button" data-action="open-explorer">進入縣市探索</button>
+          <button class="button" type="button" data-action="reset-taiwan">再玩一次</button>
+          <button class="button" type="button" data-action="go-home">回首頁</button>
+          <button class="button theme-toggle" type="button" data-action="toggle-theme">🌙 深色</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="screen-explorer" class="screen" aria-labelledby="explorer-title">
+      <header class="topbar compact">
+        <div>
+          <p class="eyebrow">T map v1.02 / 第二層入口</p>
+          <h1 id="explorer-title">縣市探索總覽</h1>
+          <p class="subtitle">選一個縣市，進入它的鄉鎮市區拼圖。</p>
+        </div>
+        <div class="toolbar"><button class="button ghost theme-toggle" type="button" data-action="toggle-theme">🌙 深色</button><button class="button ghost" type="button" data-action="go-home">← 首頁</button></div>
+      </header>
+
+      <div class="explorer-controls">
+        <label>搜尋縣市 <input id="county-search" type="search" placeholder="例如：新北、臺東" /></label>
+        <label>地區 <select id="region-filter"><option value="all">全部</option><option value="north">北部</option><option value="central">中部</option><option value="south">南部</option><option value="east">東部</option><option value="islands">離島</option></select></label>
+      </div>
+
+      <div class="explorer-layout">
+        <section class="explorer-map-card">
+          <h2>臺灣總覽</h2>
+          <svg id="explorer-map" class="map-svg explorer-map" viewBox="0 0 560 720" aria-label="臺灣縣市探索地圖"></svg>
+          <p class="hint">地圖主要顯示臺灣本島；離島請從右側清單選擇。</p>
+        </section>
+        <section class="county-list-card">
+          <div class="panel-heading"><h2>22 縣市</h2><span id="explorer-count"></span></div>
+          <div id="county-list" class="county-list"></div>
+        </section>
+      </div>
+    </section>
+
+    <section id="screen-town" class="screen" aria-labelledby="town-title">
+      <header class="topbar compact">
+        <div>
+          <p class="eyebrow">T map v1.02 / 鄉鎮市區</p>
+          <h1 id="town-title">縣市行政區拼圖</h1>
+        </div>
+        <div class="toolbar">
+          <button class="button ghost" type="button" data-action="open-explorer">← 縣市總覽</button>
+          <button class="button ghost theme-toggle" type="button" data-action="toggle-theme">🌙 深色</button>
+          <button id="reset-town" class="button ghost" type="button">重玩本縣市</button>
+        </div>
+      </header>
+
+      <div class="statusbar">
+        <button id="town-speech" class="chip" type="button"></button>
+        <button id="town-labels" class="chip" type="button"></button>
+        <button id="town-snap" class="chip" type="button"></button>
+        <strong id="town-progress">完成 0 / 0</strong>
+      </div>
+
+      <div class="puzzle-layout">
+        <aside class="piece-panel">
+          <div class="panel-heading"><h2 id="town-piece-heading">行政區拼圖片</h2><span id="town-remaining"></span></div>
+          <p class="hint">行政區較小，點選後再點地圖也是正式操作方式。</p>
+          <div id="town-piece-list" class="piece-list"></div>
+        </aside>
+        <section class="map-panel">
+          <div class="panel-heading"><h2 id="town-map-heading">縣市輪廓</h2><span id="town-selected-name" class="selected-name">尚未選取</span></div>
+          <div class="town-map-wrap"><svg id="town-map" class="map-svg" viewBox="0 0 700 700" aria-label="鄉鎮市區拼圖目標區"></svg></div>
+          <div id="town-feedback" class="feedback" role="status">選一塊行政區開始。</div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="help-dialog">
+    <form method="dialog" class="dialog-card">
+      <h2>操作方式</h2>
+      <ol>
+        <li>點拼圖：選取並依設定朗讀名稱。</li>
+        <li>拖曳拼圖到地圖：放對後自動吸附。</li>
+        <li>不方便拖曳時：先點拼圖，再點地圖中的位置。</li>
+        <li>放錯不扣分，拼圖會保留在拼圖片區。</li>
+        <li>澎湖、金門、連江使用放大框，位置與比例不代表實際距離。</li>
+        <li>完成臺灣或單一縣市時會播放慶祝音效；可在首頁關閉。</li>
+        <li>可隨時切換淺色／深色主題。</li>
+      </ol>
+      <button class="button primary" value="close">知道了</button>
+    </form>
+  </dialog>
+
+  <dialog id="town-complete-dialog">
+    <form method="dialog" class="dialog-card">
+      <div class="celebration" aria-hidden="true">🎉</div>
+      <h2 id="town-complete-title">完成！</h2>
+      <p id="town-complete-text"></p>
+      <div class="primary-actions centered">
+        <button class="button primary" value="explorer" id="town-complete-explorer">回縣市總覽</button>
+        <button class="button" value="replay" id="town-complete-replay">再玩一次</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="lib/d3.min.js"></script>
+  <script src="lib/topojson-client.min.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

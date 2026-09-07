@@ -1,0 +1,16 @@
+{
+  "name": "t-map",
+  "version": "1.2.0",
+  "private": true,
+  "description": "T map v1.02 - 臺灣行政區互動拼圖部署穩定版",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "verify": "node scripts/verify.mjs",
+    "preview": "node scripts/serve.mjs"
+  },
+  "dependencies": {
+    "d3": "7.9.0",
+    "taiwan-atlas": "2021.9.20",
+    "topojson-client": "3.1.0"
+  }
+}
