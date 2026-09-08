@@ -36,5 +36,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`T map v1.02 local preview: http://127.0.0.1:${port}`);
+  console.log(`T map v1.03 local preview: http://127.0.0.1:${port}`);
 });

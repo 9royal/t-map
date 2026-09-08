@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.02';
+  const VERSION = '1.03';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -112,6 +112,8 @@
   }
 
   function showScreen(name, remember = true) {
+    if (state.drag) endDrag(true);
+    clearNearTargets();
     screens.forEach(key => $('#screen-' + key)?.classList.toggle('is-active', key === name));
     if (remember) {
       state.last.screen = name;
@@ -205,7 +207,15 @@
       label.className = 'piece-name';
       label.textContent = name;
       button.append(label);
-      button.addEventListener('click', () => selectPiece(feature, level, button));
+      button.addEventListener('click', event => {
+        if (button.dataset.suppressClick) {
+          event.preventDefault();
+          event.stopPropagation();
+          delete button.dataset.suppressClick;
+          return;
+        }
+        selectPiece(feature, level, button);
+      });
       button.addEventListener('pointerdown', (event) => beginDrag(event, feature, level, button));
       container.append(button);
     });
@@ -221,31 +231,56 @@
     if (sourceButton) sourceButton.focus({ preventScroll: true });
   }
 
-  function beginDrag(event, feature, level, sourceButton) {
-    if (event.button !== undefined && event.button !== 0) return;
-    selectPiece(feature, level);
-    const name = level === 'county' ? countyName(feature) : townName(feature);
-    const ghost = document.createElement('div');
-    ghost.className = 'drag-ghost';
-    ghost.textContent = state.settings.labels ? name : '行政區拼圖';
-    document.body.append(ghost);
-    moveGhost(ghost, event.clientX, event.clientY);
-    state.drag = { ghost, level, name };
-    const move = e => {
-      moveGhost(ghost, e.clientX, e.clientY);
-      highlightTargetAt(e.clientX, e.clientY, name);
-    };
-    const up = e => {
-      document.removeEventListener('pointermove', move);
-      document.removeEventListener('pointerup', up);
-      clearNearTargets();
-      const target = document.elementFromPoint(e.clientX, e.clientY)?.closest?.('.target-region');
-      if (target) attemptPlacement(target.dataset.regionName, level);
-      ghost.remove();
-      state.drag = null;
-    };
-    document.addEventListener('pointermove', move);
-    document.addEventListener('pointerup', up, { once: true });
+  // The visible hover and the answer hint are deliberately independent.
+  function clearNearTargets() {
+    $$('.target-region.is-near, .target-region.is-hovered').forEach(el => {
+      el.classList.remove('is-near', 'is-hovered');
+    });
+  }
+
+  function activeMapStage(level) {
+    return level === 'county' ? $('#taiwan-map-stage') : $('#town-map').closest('.town-map-wrap');
+  }
+
+  function hitRegionAt(x, y, level) {
+    const el = document.elementFromPoint(x, y)?.closest?.('.target-region');
+    if (!el || el.dataset.level !== level) return null;
+    const screen = level === 'county' ? $('#screen-taiwan') : $('#screen-town');
+    return screen.contains(el) ? el : null;
+  }
+
+  function correctTargetPath(name, level) {
+    return $$('.target-region').find(el =>
+      el.dataset.level === level && el.dataset.regionName === name &&
+      (level === 'town' ? $('#town-map').contains(el) : $('#taiwan-map-stage').contains(el))) || null;
+  }
+
+  function measureDrop(x, y, level, name, radius = 18) {
+    const hovered = hitRegionAt(x, y, level);
+    const correct = correctTargetPath(name, level);
+    const nearCorrect = correct && !correct.classList.contains('is-placed') &&
+      TMapHints.geometryProximity(correct, x, y, radius);
+    return { ...TMapHints.classify({
+        hoveredName: hovered?.dataset.regionName,
+        selectedName: name,
+        nearCorrect,
+        snapHint: state.settings.snapHint,
+        placed: !!hovered?.classList.contains('is-placed')
+      }), hovered, correct, nearCorrect: !!nearCorrect };
+  }
+
+  function highlightTargetAt(x, y, name, level, radius) {
+    clearNearTargets();
+    const stage = activeMapStage(level);
+    const overMap = TMapHints.withinRect(x, y, stage?.getBoundingClientRect());
+    if (state.drag?.ghost) state.drag.ghost.classList.toggle('is-over-map', overMap);
+    if (!overMap) return null;
+    const result = measureDrop(x, y, level, name, radius);
+    if (result.hovered && !result.hovered.classList.contains('is-placed')) {
+      result.hovered.classList.add('is-hovered');
+    }
+    if (result.showCorrectHint && result.correct) result.correct.classList.add('is-near');
+    return result;
   }
 
   function moveGhost(ghost, x, y) {
@@ -253,14 +288,91 @@
     ghost.style.top = y + 'px';
   }
 
-  function highlightTargetAt(x, y, name) {
-    if (!state.settings.snapHint) return;
+  function endDrag(cancelled = true) {
+    const drag = state.drag;
+    if (!drag) return;
+    if (drag.frame) cancelAnimationFrame(drag.frame);
+    document.removeEventListener('pointermove', drag.move);
+    document.removeEventListener('pointerup', drag.up);
+    document.removeEventListener('pointercancel', drag.cancel);
+    window.removeEventListener('blur', drag.cancel);
+    if (drag.source.hasPointerCapture?.(drag.pointerId)) {
+      drag.source.releasePointerCapture(drag.pointerId);
+    }
+    drag.ghost.remove();
+    drag.source.classList.remove('is-dragging');
     clearNearTargets();
-    const el = document.elementFromPoint(x, y)?.closest?.('.target-region');
-    if (el && el.dataset.regionName === name) el.classList.add('is-near');
+    state.drag = null;
+    if (drag.active) {
+      drag.source.dataset.suppressClick = 'true';
+      // The following synthetic click is consumed by the piece's click handler.
+      setTimeout(() => { delete drag.source.dataset.suppressClick; }, 350);
+    }
+    if (!cancelled && drag.active) {
+      const stage = activeMapStage(drag.level);
+      if (!TMapHints.withinRect(drag.x, drag.y, stage?.getBoundingClientRect())) return;
+      const result = measureDrop(drag.x, drag.y, drag.level, drag.name, drag.radius);
+      if (result.canPlace) {
+        state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
+        placeSelected(drag.level);
+      } else if (result.hovered) {
+        attemptPlacement(result.hovered.dataset.regionName, drag.level);
+      }
+    }
   }
 
-  function clearNearTargets() { $$('.target-region.is-near').forEach(el => el.classList.remove('is-near')); }
+  function beginDrag(event, feature, level, sourceButton) {
+    if (event.button !== undefined && event.button !== 0) return;
+    if (state.drag) return;
+    selectPiece(feature, level);
+    const name = level === 'county' ? countyName(feature) : townName(feature);
+    const ghost = document.createElement('div');
+    ghost.className = 'drag-ghost';
+    ghost.textContent = state.settings.labels ? name : '行政區拼圖';
+    ghost.setAttribute('aria-hidden', 'true');
+    document.body.append(ghost);
+    moveGhost(ghost, event.clientX, event.clientY);
+    const drag = {
+      ghost, level, name, feature, source: sourceButton,
+      pointerId: event.pointerId, x: event.clientX, y: event.clientY,
+      startX: event.clientX, startY: event.clientY, active: false,
+      radius: event.pointerType === 'touch' ? 24 : 18, frame: 0
+    };
+    state.drag = drag;
+    drag.move = e => {
+      if (e.pointerId !== drag.pointerId) return;
+      drag.x = e.clientX; drag.y = e.clientY;
+      if (!drag.active && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) >= 5) {
+        drag.active = true;
+        sourceButton.classList.add('is-dragging');
+        ghost.style.visibility = 'visible';
+      }
+      if (!drag.active) return;
+      if (!drag.frame) drag.frame = requestAnimationFrame(() => {
+        drag.frame = 0;
+        if (state.drag !== drag) return;
+        moveGhost(ghost, drag.x, drag.y);
+        highlightTargetAt(drag.x, drag.y, name, level, drag.radius);
+      });
+    };
+    drag.up = e => {
+      if (e.pointerId !== drag.pointerId) return;
+      drag.x = e.clientX; drag.y = e.clientY;
+      endDrag(false);
+    };
+    drag.cancel = e => {
+      if (e.pointerId !== undefined && e.pointerId !== drag.pointerId) return;
+      endDrag(true);
+    };
+    sourceButton.setPointerCapture?.(event.pointerId);
+    document.addEventListener('pointermove', drag.move);
+    document.addEventListener('pointerup', drag.up);
+    document.addEventListener('pointercancel', drag.cancel);
+    window.addEventListener('blur', drag.cancel);
+    ghost.style.visibility = 'hidden';
+    // A simple click still selects the piece; only an actual drag shows its badge.
+    if (event.pointerType === 'touch') event.preventDefault();
+  }
 
   function targetClick(event) {
     const targetName = event.currentTarget.dataset.regionName;
@@ -333,6 +445,12 @@
       .attr('aria-label', f => level === 'county' ? countyName(f) : townName(f))
       .attr('data-region-name', f => level === 'county' ? countyName(f) : townName(f))
       .attr('data-level', level)
+      .on('pointerenter', function() {
+        if (!state.drag && !this.classList.contains('is-placed')) this.classList.add('is-hovered');
+      })
+      .on('pointerleave', function() {
+        if (!state.drag) this.classList.remove('is-hovered');
+      })
       .on('click', targetClick)
       .on('keydown', function(event) { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); targetClick({ currentTarget: this }); } });
 
@@ -379,6 +497,7 @@
   function openTaiwanPuzzle() {
     state.currentCounty = null;
     state.selected = null;
+    clearNearTargets();
     renderTaiwanMap();
     renderTaiwanPieces();
     updateTaiwanProgress();
@@ -543,6 +662,11 @@
   function toggleSetting(key) {
     state.settings[key] = !state.settings[key];
     if (key === 'effects' && state.settings.effects) ensureAudioContext();
+    if (key === 'snapHint' && !state.drag) clearNearTargets();
+    if (key === 'snapHint' && state.drag) {
+      highlightTargetAt(state.drag.x, state.drag.y, state.drag.name,
+        state.drag.level, state.drag.radius);
+    }
     saveState();
     updateSettingChips();
   }
@@ -598,7 +722,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.02</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.02 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.03</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.03 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {
