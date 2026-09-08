@@ -57,7 +57,7 @@ if (townCount !== 368) throw new Error(`鄉鎮市區圖資完整性檢查失敗�
 
 const stamp = {
   app: 'T map',
-  version: '1.02',
+  version: '1.03',
   builtAt: new Date().toISOString(),
   localizedAssets: true,
   countyCount,
@@ -66,4 +66,4 @@ const stamp = {
 };
 await writeFile(path.join(dist, 'build-info.json'), JSON.stringify(stamp, null, 2) + '\n', 'utf8');
 
-console.log(`T map v1.02 build completed: ${countyCount} counties, ${townCount} towns.`);
+console.log(`T map v1.03 build completed: ${countyCount} counties, ${townCount} towns.`);

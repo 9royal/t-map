@@ -167,3 +167,75 @@ dialog::backdrop { background: rgb(10 24 31 / .5); }
 html[data-theme="dark"] .button.primary { color: #081a20; }
 html[data-theme="dark"] dialog { background: var(--card); color: var(--text); }
 html[data-theme="dark"] dialog::backdrop { background: rgb(0 0 0 / .72); }
+
+/* v1.03: location awareness and answer assistance are separate layers. */
+:root {
+  --hover-fill: #b9d7f5;
+  --hover-stroke: #245b9e;
+  --hint-fill: #ffdc70;
+  --hint-stroke: #a44800;
+  --hint-glow: rgb(255 177 27 / .72);
+  --ghost-bg: rgb(255 255 255 / .96);
+  --ghost-map-bg: rgb(255 255 255 / .32);
+  --ghost-text: #172126;
+  --ghost-border: #274b60;
+}
+html[data-theme="dark"] {
+  --hover-fill: #315a88;
+  --hover-stroke: #b3d8ff;
+  --hint-fill: #ffd166;
+  --hint-stroke: #fff0a6;
+  --hint-glow: rgb(255 190 42 / .8);
+  --ghost-bg: rgb(24 35 41 / .96);
+  --ghost-map-bg: rgb(24 35 41 / .32);
+  --ghost-text: #ffffff;
+  --ghost-border: #d1e2ed;
+}
+.piece-card { touch-action: none; user-select: none; -webkit-user-select: none; }
+.piece-card.is-dragging { cursor: grabbing; }
+.piece-card.is-dragging svg { opacity: .45; }
+.target-region:not(.is-placed):hover,
+.target-region.is-hovered:not(.is-placed) {
+  fill: var(--hover-fill);
+  stroke: var(--hover-stroke);
+  stroke-width: 2.5;
+}
+.target-region.is-near:not(.is-placed),
+.target-region.is-near:not(.is-placed):hover {
+  fill: var(--hint-fill);
+  stroke: var(--hint-stroke);
+  stroke-width: 3.5;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 0 4px var(--hint-glow))
+          drop-shadow(0 0 8px var(--hint-glow));
+}
+.target-region.is-placed,
+.target-region.is-placed:hover {
+  fill: var(--placed-fill);
+  stroke: var(--placed-stroke);
+  stroke-width: 2.1;
+  filter: none;
+}
+.map-svg { overflow: visible; }
+.drag-ghost {
+  transform: translate(-50%, calc(-100% - 12px));
+  background: var(--ghost-bg);
+  color: var(--ghost-text);
+  border: 1.5px solid var(--ghost-border);
+  box-shadow: 0 3px 12px rgb(0 0 0 / .16);
+  font-size: 15px;
+  line-height: 1.45;
+  max-width: min(200px, 70vw);
+  text-align: center;
+  white-space: normal;
+  pointer-events: none;
+}
+.drag-ghost.is-over-map {
+  background: var(--ghost-map-bg);
+  box-shadow: 0 1px 4px rgb(0 0 0 / .1);
+  border-color: color-mix(in srgb, var(--ghost-border) 45%, transparent);
+  text-shadow: 0 1px 2px var(--card), 0 -1px 2px var(--card);
+}
+@media (prefers-reduced-motion: reduce) {
+  .target-region { transition: none; }
+}

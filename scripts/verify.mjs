@@ -10,7 +10,7 @@ const dist = path.join(root, 'dist');
 if (!existsSync(dist)) throw new Error('找不到 dist/；請先執行 npm run build。');
 
 const expected = [
-  'index.html', 'css/style.css', 'js/app.js',
+  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js',
   'lib/d3.min.js', 'lib/topojson-client.min.js',
   'data/counties-10t.json', 'data/towns-10t.json',
   'build-info.json'
@@ -53,3 +53,14 @@ if (c !== 22 || t !== 368) throw new Error(`圖資數量異常：縣市 ${c}、�
 console.log('✓ 部署檔案完整');
 console.log('✓ 執行期無外部 CDN JS/JSON 依賴');
 console.log(`✓ 行政區資料完整：${c} 縣市 / ${t} 鄉鎮市區`);
+
+const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
+const html = await readFile(path.join(dist, 'index.html'), 'utf8');
+const app = await readFile(path.join(dist, 'js/app.js'), 'utf8');
+const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
+const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
+if (pkg.version !== '1.3.0' || version !== 'T map v1.03' || info.version !== '1.03' || !html.includes('T map v1.03') || /T map v1\.0[012]/.test(html) || !app.includes("const VERSION = '1.03'") || !helper.includes('TMapHints')) {
+  throw new Error('v1.03 版本資訊不一致。');
+}
+console.log('✓ v1.03 版本資訊一致');

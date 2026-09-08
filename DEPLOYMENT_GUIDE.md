@@ -1,103 +1,29 @@
-# T map v1.02｜GitHub + Cloudflare Pages 部署指南
+# T map v1.03｜更新現有 GitHub + Cloudflare Pages 網站
 
-本指南採「GitHub 保存原始碼、Cloudflare Pages 自動建置與發布」的方式。
+## 1. 先保留 v1.02
 
-## A. 建立 GitHub Repository
+進入 GitHub 的 `9royal/t-map`，確認目前可運作的 commit。建議建立 `v1.02` tag 或記下 commit ID；如果日後更新失敗，可以回到原版本。不要刪除已成功的 Cloudflare Pages 專案，也不要重新建立另一個學生網址。
 
-1. 登入 GitHub，建立新的 repository。
-2. Repository name 建議：`t-map`。
-3. Description 可填：`T map｜臺灣行政區互動拼圖`。
-4. 建議先設為 Public；若設 Private，Cloudflare Pages 亦可連接，但需授權存取。
-5. 建立 repository 後，選 `Add file` → `Upload files`。
-6. 解壓 `T-map-v1.02.zip`，把 **T-map-v1.02 資料夾內的內容** 拖入上傳區；不要再多包一層 `T-map-v1.02/` 目錄。
-7. Commit message 填：`T map v1.02 initial deployment`。
-8. Commit 到 `main`。
+## 2. 更新 Repository
 
-上傳後 repository 根目錄應直接看見：
+建議使用 GitHub Desktop：Clone repository → 在檔案總管開啟專案資料夾 → 將 v1.03 ZIP 內的所有檔案複製到該根目錄並合併／覆蓋同名檔案 → 檢查 Changes → Commit → Push origin。
 
-```text
-index.html
-package.json
-README.md
-css/
-js/
-scripts/
-.github/
-```
+若使用 GitHub 網頁，應先建立新分支（例如 `v1.03-review`），依完整資料夾路徑上傳更動檔案，待建置與預覽通過後再合併到 main。根目錄必須直接有 index.html、package.json、css/、js/、scripts/、README.md 等；不可多包一層 T-map-v1.03。不要上傳 node_modules、dist 或個人金鑰。ZIP 內含完整 scripts 資料夾，避免再次遺漏 build.mjs。
 
-## B. 接到 Cloudflare Pages
+## 3. Cloudflare Pages 保持原有設定
 
-1. 登入 Cloudflare Dashboard。
-2. 進入 `Workers & Pages`。
-3. 選 `Create application`。
-4. 選 Pages / Import an existing Git repository（介面文字可能略有更新）。
-5. 連接 GitHub，授權 Cloudflare 存取剛建立的 `t-map` repository。
-6. 選擇 `t-map`，開始設定。
-7. Production branch：`main`。
-8. Framework preset：None / 無框架（若有此選項）。
-9. Build command：
+- Production branch: main
+- Framework preset: None
+- Build command: `npm run build && npm run verify`
+- Build output directory: `dist`
+- Root directory: 留空
 
-```text
-npm run build && npm run verify
-```
+提交到 main 後，原有 Git 整合會自動開始部署。首次不必更改任何 Cloudflare 設定。若失敗，請下載完整 Build log，從第一個 Error 開始排查；不要直接關閉 verify，也不要先刪除成功的 v1.02。
 
-10. Build output directory：
+## 4. 驗收與回復
 
-```text
-dist
-```
+使用 Pages 的預覽部署先測試：一般碰觸在 ON/OFF 皆變色；ON 時正確輪廓發光；OFF 不發光；兩者均可放對吸附；文字在地圖上半透明；小行政區與離島能正確判定；深淺色、進度及完成音效正常。再測試正式網址與平板。若有問題，可透過 Cloudflare 部署紀錄回復上一個成功部署，或在 GitHub 回復到 v1.02 commit 後重新部署。
 
-11. Root directory：留空。
-12. 儲存並 Deploy。
+## 5. 後續版本
 
-Cloudflare 會先安裝 `package.json` 中固定版本的三個依賴，再執行建置。建置成功後 `dist/` 會包含本地化的：
-
-```text
-lib/d3.min.js
-lib/topojson-client.min.js
-data/counties-10t.json
-data/towns-10t.json
-```
-
-學生瀏覽器不會再向 jsDelivr 取得這四項資源。
-
-## C. 成功後應看到什麼
-
-Cloudflare Pages 會提供一個類似：
-
-```text
-https://t-map.pages.dev
-```
-
-的公開網址。實際名稱依 Cloudflare 可用專案名稱而定。
-
-開啟後請依序測試：
-
-1. 首頁能正常顯示。
-2. 深色／淺色可切換。
-3. 22 縣市拼圖可載入。
-4. 點縣市可朗讀名稱（裝置支援時）。
-5. 完成任務有慶祝音效。
-6. 進入任一縣市後鄉鎮市區數量正確。
-7. 重新整理後進度仍存在。
-
-## D. 後續版本更新
-
-日後 T map v1.03、v1.04 只要把修改後檔案 commit / push 到 GitHub 的 `main`，Cloudflare Pages 會自動重新建置並更新正式網站。
-
-建議版本流程：
-
-```text
-修改程式 → GitHub commit → Cloudflare 自動 build → verify → 正式網站更新
-```
-
-## E. 若 Cloudflare Build 失敗
-
-先看 Build log。v1.02 已刻意讓常見錯誤明確失敗，例如：
-
-- npm 套件沒有安裝成功。
-- taiwan-atlas 圖資數量不是 22 / 368。
-- 本地化部署檔缺少 D3 / TopoJSON / 圖資。
-- `npm run verify` 發現執行期外部 CDN JS/JSON 網址。
-
-不要關掉 verify 來強行部署，應先修正真正的錯誤。
+每次修改採 v1.04、v1.05 順序升版，並同步更新 README、CHANGELOG、VERSION 與 package.json。不要只改網頁標題。

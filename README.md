@@ -1,91 +1,71 @@
-# T map v1.02 — 部署穩定版
+# T map v1.03 — 拖曳與提示優化版
 
-臺灣行政區互動拼圖。v1.02 的重點是「學生端零 CDN 依賴」：第三方函式庫與行政區圖資在部署建置時固定版本並複製到網站自己的 `dist/`，學生開啟網站時只連到 T map 所在網域。
+臺灣行政區互動拼圖。保留 v1.02 的五個畫面、22 縣市與 368 鄉鎮市區、離島放大框、深淺色主題、語音、慶祝音效及本機學習進度。本版專注改善小行政區的拖曳辨識，不加入帳號、排行榜或後端。
 
-## v1.02 的穩定化設計
+## v1.03 操作規則
 
-- D3.js 固定 7.9.0。
-- topojson-client 固定 3.1.0。
-- taiwan-atlas 固定 2021.9.20。
-- 建置後使用 `lib/d3.min.js`、`lib/topojson-client.min.js`。
-- 建置後使用 `data/counties-10t.json`、`data/towns-10t.json`。
-- 建置時驗證 22 縣市與 368 鄉鎮市區。
-- `npm run verify` 會檢查部署檔是否仍殘留外部 CDN JS/JSON URL。
-- Cloudflare Pages 可直接以 `dist` 作為 Build output directory。
+| 操作 | 正確位置提示 OFF | 正確位置提示 ON |
+|---|---|---|
+| 拖曳時碰觸任一未完成行政區 | 一般藍色碰觸變色 | 同樣的一般碰觸變色 |
+| 碰觸錯誤位置 | 一般碰觸色，不透露答案 | 一般碰觸色，不透露答案 |
+| 靠近正確位置 | 不顯示答案提示 | 正確輪廓顯示高對比琥珀色及明顯光暈 |
+| 放到正確位置或有效容許範圍 | 自動吸附並固定 | 自動吸附並固定 |
+| 放錯位置 | 返回拼圖片區，不扣分 | 相同 |
 
-## 專案與部署輸出
+碰觸變色與答案提示是兩個獨立層次；OFF 並不關閉自動吸附。正確位置容許範圍對兩種設定相同。滑鼠預設 18 CSS px，觸控預設 24 CSS px，僅作為幾何邊界附近的放置容許值，不採行政區外接矩形作答案判定。正確位置提示使用真實 SVG 路徑，並避免把離島之間的空白當作連續邊界。
 
-```text
-T-map-v1.02/
-├─ index.html
-├─ css/
-├─ js/
-├─ scripts/
-│  ├─ build.mjs
-│  ├─ verify.mjs
-│  └─ serve.mjs
-├─ package.json
-├─ _headers
-├─ .github/workflows/verify.yml
-└─ dist/                 ← 執行 npm run build 後產生
-   ├─ index.html
-   ├─ css/
-   ├─ js/
-   ├─ lib/
-   │  ├─ d3.min.js
-   │  └─ topojson-client.min.js
-   └─ data/
-      ├─ counties-10t.json
-      └─ towns-10t.json
-```
+### 拖曳標籤
 
-## 本機建置
+點選時依「顯示名稱」與「語音」設定辨識行政區。真正開始拖曳後，文字標籤跟隨指標；進入地圖時只讓標籤背景變成約 32% 不透明，文字保持清晰，並將標籤置於指標上方，避免遮住小區域。離開地圖恢復不透明背景。標籤不攔截地圖命中判定。
 
-需要 Node.js 20 以上（建議 Node.js 22）。
+名稱 OFF 時不洩漏行政區名稱；拖曳標籤顯示「行政區拼圖」。可先點選拼圖，再點地圖中的目標位置，作為不使用拖曳的替代操作。深色與淺色主題均提供獨立高對比配色；已完成區維持綠色，不因一般碰觸而改成未完成色。
+
+## 保留功能與資料
+
+- 臺灣 22 縣市拼圖，澎湖、金門、連江使用標示比例放大的離島區。
+- 完成臺灣後進入任選縣市的鄉鎮市區拼圖。
+- 語音朗讀、顯示名稱、正確位置提示、慶祝音效均可獨立設定。
+- 使用瀏覽器 localStorage 儲存進度與設定；沿用 `tmap-v1-state`，升級不會主動清除既有紀錄。
+- 完成任務有慶祝音效；瀏覽器可能要求先有使用者互動才能播放。
+- D3 7.9.0、topojson-client 3.1.0、taiwan-atlas 2021.9.20，固定版本並在建置時複製到 `dist/`。
+- 圖資為歷史快照，不宣稱是即時最新行政區界線；來源與授權見 THIRD_PARTY_NOTICES.md。
+
+## 本機建置與測試
+
+需 Node.js 20 以上，建議 Node.js 22。下載並解壓完整專案後，在含 package.json 的根目錄執行：
 
 ```bash
 npm install
+npm test
 npm run build
 npm run verify
 npm run preview
 ```
 
-接著瀏覽：`http://127.0.0.1:4173`
+開啟 `http://127.0.0.1:4173`。不要直接雙擊原始 index.html，因為瀏覽器可能限制 file:// 讀取 JSON。`npm test` 使用 Node 內建測試工具，不需要額外測試套件。
 
-> 不建議直接雙擊 `index.html`。瀏覽器對 `file://` 載入 JSON 有安全限制；正式使用請經 GitHub/Cloudflare 或本機 HTTP server。
+## Cloudflare Pages
 
-## Cloudflare Pages 設定
+沿用既有 GitHub Repository `9royal/t-map` 與現有 Pages 專案，不需重新建立網站。將 v1.03 更新提交到 main；建置設定維持：
 
-- Production branch：`main`
-- Build command：`npm run build && npm run verify`
-- Build output directory：`dist`
-- Root directory：留空（repository 根目錄）
+| 欄位 | 設定 |
+|---|---|
+| Framework preset | None |
+| Production branch | main |
+| Build command | `npm run build && npm run verify` |
+| Build output directory | `dist` |
+| Root directory | 留空 |
 
-Cloudflare 會先依 `package.json` 安裝固定版本依賴，再執行建置。部署後學生端只讀取同網域的靜態檔案。
+首次更新前請保留可運作的 v1.02 commit。使用 GitHub 網頁上傳時，必須保留資料夾階層；`scripts/build.mjs` 不能放在根目錄。建議使用 GitHub Desktop 或 Git 批次提交，避免遺漏隱藏檔及資料夾。詳細步驟見 DEPLOYMENT_GUIDE.md。
 
-## API / 網路依賴
+### 部署驗收
 
-### 不使用
+開啟正式網址後確認：首頁版本、22 縣市、三個離島、鄉鎮市區、兩種提示模式、正確與錯誤放置、深淺色、語音與完成音效、重新整理後進度，以及手機觸控。尚未完成實際裝置驗收前，不應宣稱已在所有設備上測試通過。
 
-- 不使用 OpenAI API
-- 不使用 Gemini API
-- 不使用 Google Maps API
-- 不使用 Firebase API
-- 不需要 API Key
-- 不需要後端資料庫
+## API 與隱私
 
-### 使用的瀏覽器能力
+不使用 OpenAI、Gemini、Google Maps、Firebase 或其他需要 API Key 的第三方服務，也不需要後端資料庫。學生端的 D3、TopoJSON 與圖資均從本站載入。使用 Web Speech API、Web Audio API、Pointer Events、Fetch API（同網域靜態資料）與 localStorage。語音合成的實際服務由瀏覽器／作業系統提供，部分設備可能使用網路；本程式不自行傳送語音 API Key。localStorage 僅儲存在當前瀏覽器與來源網域，並非跨裝置同步或教師成績資料庫。
 
-- Web Speech API：中文名稱朗讀。
-- Web Audio API：完成慶祝音效。
-- localStorage：在使用者瀏覽器保存設定與進度。
-- Pointer Events：滑鼠／觸控／觸控筆操作。
-- Fetch API：只讀取 T map **自己網域內**的 `data/*.json`。
+## 版本維護
 
-> Web Speech API 的實際語音由瀏覽器／作業系統提供；部分裝置的語音服務實作可能由作業系統自行使用網路，T map 本身不傳送 API Key 或呼叫第三方語音端點。
-
-## 資料來源
-
-行政區圖資採 taiwan-atlas 2021.9.20；該專案說明其 TopoJSON 由內政部直轄市／縣市界線與鄉鎮市區界線公開資料轉製。
-
-版本：T map v1.02
+每次升版同步更新 README.md、CHANGELOG.md、VERSION、package.json、網頁版本與 build-info.json。`npm run verify` 檢查主要版本資訊和本地化檔案。正式升版前保留舊版，不直接覆蓋線上網站後才測試。

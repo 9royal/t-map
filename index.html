@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
-  <title>T map v1.02｜臺灣行政區互動拼圖</title>
+  <title>T map v1.03｜臺灣行政區互動拼圖</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
     <section id="screen-home" class="screen is-active" aria-labelledby="home-title">
       <header class="topbar">
         <div>
-          <p class="eyebrow">T map v1.02</p>
+          <p class="eyebrow">T map v1.03</p>
           <h1 id="home-title">臺灣行政區互動拼圖</h1>
           <p class="subtitle">先拼出臺灣，再探索 22 縣市裡的鄉鎮市區。</p>
         </div>
@@ -23,7 +23,7 @@
         <section class="hero-card">
           <div class="taiwan-mark" aria-hidden="true">TW</div>
           <h2>從一塊拼圖開始認識臺灣</h2>
-          <p>點一下可以辨識名稱，拖曳到正確位置就會自動吸附。澎湖、金門、連江另以放大框呈現。</p>
+          <p>點一下可以辨識名稱，拖曳時可辨識目前碰觸的行政區，放對後自動吸附。澎湖、金門、連江另以放大框呈現。</p>
           <div class="primary-actions">
             <button class="button primary" type="button" data-action="start-taiwan">開始拼臺灣縣市</button>
             <button class="button" type="button" data-action="continue">繼續上次進度</button>
@@ -35,7 +35,7 @@
           <h2 id="settings-title">學習設定</h2>
           <label class="switch-row"><span>🔊 點選時朗讀名稱</span><input id="setting-speech" type="checkbox" checked /></label>
           <label class="switch-row"><span>🏷 顯示行政區名稱</span><input id="setting-labels" type="checkbox" checked /></label>
-          <label class="switch-row"><span>🧲 啟用吸附提示</span><input id="setting-snap" type="checkbox" checked /></label>
+          <label class="switch-row"><span>🧲 正確位置提示</span><input id="setting-snap" type="checkbox" checked /></label>
           <label class="switch-row"><span>🎉 完成慶祝音效</span><input id="setting-effects" type="checkbox" checked /></label>
           <label class="setting-row"><span>🎨 畫面主題</span><select id="setting-theme" aria-label="畫面主題"><option value="light">淺色</option><option value="dark">深色</option></select></label>
           <div class="progress-summary">
@@ -45,13 +45,13 @@
         </aside>
       </div>
 
-      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.02</footer>
+      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.03</footer>
     </section>
 
     <section id="screen-taiwan" class="screen" aria-labelledby="taiwan-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.02 / 第一層</p>
+          <p class="eyebrow">T map v1.03 / 第一層</p>
           <h1 id="taiwan-title">臺灣 22 縣市拼圖</h1>
         </div>
         <div class="toolbar">
@@ -103,7 +103,7 @@
     <section id="screen-complete" class="screen" aria-labelledby="complete-title">
       <div class="completion-card">
         <div class="celebration" aria-hidden="true">🎉</div>
-        <p class="eyebrow">T map v1.02</p>
+        <p class="eyebrow">T map v1.03</p>
         <h1 id="complete-title">臺灣縣市拼圖完成！</h1>
         <p class="completion-lead">你已完成 22 / 22 個縣市。接下來可以把每一個縣市繼續拆開，探索其中的鄉、鎮、市、區。</p>
         <div id="complete-map" class="complete-map"></div>
@@ -119,7 +119,7 @@
     <section id="screen-explorer" class="screen" aria-labelledby="explorer-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.02 / 第二層入口</p>
+          <p class="eyebrow">T map v1.03 / 第二層入口</p>
           <h1 id="explorer-title">縣市探索總覽</h1>
           <p class="subtitle">選一個縣市，進入它的鄉鎮市區拼圖。</p>
         </div>
@@ -147,7 +147,7 @@
     <section id="screen-town" class="screen" aria-labelledby="town-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.02 / 鄉鎮市區</p>
+          <p class="eyebrow">T map v1.03 / 鄉鎮市區</p>
           <h1 id="town-title">縣市行政區拼圖</h1>
         </div>
         <div class="toolbar">
@@ -184,7 +184,9 @@
       <h2>操作方式</h2>
       <ol>
         <li>點拼圖：選取並依設定朗讀名稱。</li>
-        <li>拖曳拼圖到地圖：放對後自動吸附。</li>
+        <li>拖曳拼圖到地圖：文字標籤會跟隨指標，進入地圖後背景半透明；放對後自動吸附。</li>
+        <li>一般碰觸變色在提示 ON／OFF 都會顯示，僅代表目前碰到的位置。</li>
+        <li>正確位置提示 ON：靠近正確行政區時，輪廓以不同顏色明顯發光；OFF：不透露正確位置。兩種設定都保留自動吸附。</li>
         <li>不方便拖曳時：先點拼圖，再點地圖中的位置。</li>
         <li>放錯不扣分，拼圖會保留在拼圖片區。</li>
         <li>澎湖、金門、連江使用放大框，位置與比例不代表實際距離。</li>
@@ -209,6 +211,7 @@
 
   <script src="lib/d3.min.js"></script>
   <script src="lib/topojson-client.min.js"></script>
+  <script src="js/puzzle-hints.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
