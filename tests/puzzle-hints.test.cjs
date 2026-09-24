@@ -48,6 +48,9 @@ test('proximity accepts a true fill and nearby boundary, rejects distant points'
     getTotalLength:()=>40,
     getPointAtLength:d=>{d%=40;if(d<10)return{x:d,y:0};if(d<20)return{x:10,y:d-10};if(d<30)return{x:30-d,y:10};return{x:0,y:40-d};}};
   try {
+    assert.equal(h.geometryDistance(path,5,5,2),0);
+    assert.ok(h.geometryDistance(path,12,5,3) <= 3);
+    assert.equal(h.geometryDistance(path,50,50,3),Infinity);
     assert.equal(h.geometryProximity(path,5,5,2),true);
     assert.equal(h.geometryProximity(path,12,5,3),true);
     assert.equal(h.geometryProximity(path,50,50,3),false);

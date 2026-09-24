@@ -10,7 +10,7 @@ const dist = path.join(root, 'dist');
 if (!existsSync(dist)) throw new Error('找不到 dist/；請先執行 npm run build。');
 
 const expected = [
-  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js',
+  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js', 'js/mobile-map.js',
   'lib/d3.min.js', 'lib/topojson-client.min.js',
   'data/counties-10t.json', 'data/towns-10t.json',
   'build-info.json'
@@ -59,8 +59,9 @@ const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
 const html = await readFile(path.join(dist, 'index.html'), 'utf8');
 const app = await readFile(path.join(dist, 'js/app.js'), 'utf8');
 const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
+const mobile = await readFile(path.join(dist, 'js/mobile-map.js'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
-if (pkg.version !== '1.3.0' || version !== 'T map v1.03' || info.version !== '1.03' || !html.includes('T map v1.03') || /T map v1\.0[012]/.test(html) || !app.includes("const VERSION = '1.03'") || !helper.includes('TMapHints')) {
-  throw new Error('v1.03 版本資訊不一致。');
+if (pkg.version !== '1.4.0' || version !== 'T map v1.04' || info.version !== '1.04' || !html.includes('T map v1.04') || /T map v1\.0[0-3]/.test(html) || !app.includes("const VERSION = '1.04'") || !helper.includes('geometryDistance') || !mobile.includes('TMapMobile')) {
+  throw new Error('v1.04 版本資訊不一致。');
 }
-console.log('✓ v1.03 版本資訊一致');
+console.log('✓ v1.04 版本資訊一致');
