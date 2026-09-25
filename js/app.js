@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.04.5';
+  const VERSION = '1.04.6';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -237,8 +237,22 @@
   function magnifierContactDecision(drag) {
     const correct = correctTargetPath(drag?.name, drag?.level);
     const placed = !!correct?.classList.contains('is-placed');
-    const touchesCorrect = !!correct && !placed && Number.isFinite(drag?.aimX) && Number.isFinite(drag?.aimY) &&
-      TMapHints.geometryProximity(correct, drag.aimX, drag.aimY, magnifierContactRadius());
+    const hasAim = Number.isFinite(drag?.aimX) && Number.isFinite(drag?.aimY);
+    const radius = magnifierContactRadius();
+    let touchesCorrect = false;
+    if (correct && !placed && hasAim) {
+      // v1.04.6: a crosshair circle overlaps the correct region when either its
+      // centre is already inside the fill, or its visible edge reaches the path.
+      // Browser hit-testing is intentionally used for the centre: this is more
+      // reliable on iOS/WebKit and works for the separate Penghu/Kinmen/Lienchiang insets.
+      const centerHit = hitRegionAt(drag.aimX, drag.aimY, drag.level) === correct;
+      const boundaryDistance = TMapHints.geometryDistance(correct, drag.aimX, drag.aimY, radius);
+      touchesCorrect = TMapHints.crosshairCircleContact({
+        centerInside: centerHit,
+        boundaryDistance,
+        radius
+      });
+    }
     return TMapHints.magnifierContact({
       touchesCorrect,
       selectedName: drag?.name || null,
@@ -296,7 +310,7 @@
     drag.usingMagnifier = true;
     drag.aimX = geometry.centerX;
     drag.aimY = geometry.centerY;
-    // v1.04.5: hint and final placement share the same physical rule.
+    // v1.04.6: hint and final placement share the same visible-circle rule.
     // The visible crosshair is a 16px outer circle inside a 2.35x lens, so the
     // equivalent contact radius on the source map is about 3.4 CSS pixels.
     // A hint appears only when that circle actually touches the selected region.
@@ -728,7 +742,6 @@
     const dropPoint = dragInteractionPoint(drag);
     const magnifierDrop = !!drag.usingMagnifier;
     const magnifierCanPlace = !!drag.magnifierTouchesCorrect;
-    const magnifierRadius = drag.magnifierContactRadius || magnifierContactRadius();
 
     document.removeEventListener('pointermove', drag.move);
     document.removeEventListener('pointerup', drag.up);
@@ -752,15 +765,16 @@
       if (!TMapHints.withinRect(dropPoint.x, dropPoint.y, stage?.getBoundingClientRect())) return;
 
       if (magnifierDrop) {
-        // With the magnifier on, snapping is deliberately precise: the visible
-        // crosshair circle itself must touch the correct geometry. The former
-        // 24/30px mobile smart radius is not used for the final drop.
+        // With the magnifier on, both the yellow hint and final snap use exactly
+        // the same crosshair-circle contact test. No wider 24/30px fallback is
+        // allowed here; if the circle does not touch the selected correct region,
+        // releasing the piece must not snap it into place.
         if (magnifierCanPlace) {
           state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
           placeSelected(drag.level);
         } else {
-          const touched = nearestTargetAt(dropPoint.x, dropPoint.y, drag.level, magnifierRadius);
-          if (touched) attemptPlacement(touched.dataset.regionName, drag.level);
+          const feedback = drag.level === 'county' ? $('#taiwan-feedback') : $('#town-feedback');
+          setFeedback(feedback, '準星小圓圈尚未碰到正確區域，再對準一點。', 'try');
         }
         return;
       }
@@ -1254,7 +1268,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.5</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.5 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.6</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.6 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

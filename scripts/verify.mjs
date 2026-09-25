@@ -62,7 +62,7 @@ const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
 const mobile = await readFile(path.join(dist, 'js/mobile-map.js'), 'utf8');
 const speech = await readFile(path.join(dist, 'js/speech-profiles.js'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
-if (pkg.version !== '1.4.5' || version !== 'T map v1.04.5' || info.version !== '1.04.5' || !html.includes('T map v1.04.5') || /T map v1\.0[0-3](?!\.)/.test(html) || !app.includes("const VERSION = '1.04.5'") || !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') || !mobile.includes('drawerStateFromSwipe') || !speech.includes('taiwanese') || !speech.includes('english') || !helper.includes('correctHintSurface') || !helper.includes('magnifierHintName') || !helper.includes('magnifierContact') || !helper.includes('magnifierSourceRadius') || !app.includes('applyMagnifierCorrectHint') || !app.includes('magnifierContactDecision') || !app.includes('magnifierCanPlace') || !html.includes('style.css?v=1.04.5') || !html.includes('app.js?v=1.04.5')) {
-  throw new Error('v1.04.5 版本資訊不一致。');
+if (pkg.version !== '1.4.6' || version !== 'T map v1.04.6' || info.version !== '1.04.6' || !html.includes('T map v1.04.6') || /T map v1\.0[0-3](?!\.)/.test(html) || !app.includes("const VERSION = '1.04.6'") || !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') || !mobile.includes('drawerStateFromSwipe') || !speech.includes('taiwanese') || !speech.includes('english') || !helper.includes('correctHintSurface') || !helper.includes('magnifierHintName') || !helper.includes('magnifierContact') || !helper.includes('magnifierSourceRadius') || !helper.includes('crosshairCircleContact') || !app.includes('applyMagnifierCorrectHint') || !app.includes('magnifierContactDecision') || !app.includes('magnifierCanPlace') || !html.includes('style.css?v=1.04.6') || !html.includes('app.js?v=1.04.6')) {
+  throw new Error('v1.04.6 版本資訊不一致。');
 }
-console.log('✓ v1.04.5 版本資訊一致');
+console.log('✓ v1.04.6 版本資訊一致');

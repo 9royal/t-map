@@ -41,11 +41,13 @@
   }
 
   function geometryDistance(path, x, y, maxRadius = Infinity) {
-    if (!path || !path.getScreenCTM || !path.isPointInFill) return Infinity;
+    if (!path || !path.getScreenCTM) return Infinity;
     const matrix = path.getScreenCTM();
     if (!matrix) return Infinity;
     const local = new DOMPoint(x, y).matrixTransform(matrix.inverse());
-    if (path.isPointInFill(local)) return 0;
+    if (typeof path.isPointInFill === 'function') {
+      try { if (path.isPointInFill(local)) return 0; } catch (_) { /* Safari/WebKit fallback: boundary test below. */ }
+    }
     const rect = path.getBoundingClientRect();
     if (Number.isFinite(maxRadius) && (x < rect.left - maxRadius || x > rect.right + maxRadius ||
         y < rect.top - maxRadius || y > rect.bottom + maxRadius)) return Infinity;
@@ -86,6 +88,13 @@
     return crosshairOuterRadius / magnifierScale;
   }
 
+
+  function crosshairCircleContact({ centerInside = false, boundaryDistance = Infinity, radius = 0 } = {}) {
+    if (centerInside) return true;
+    if (!Number.isFinite(radius) || radius < 0) return false;
+    return Number.isFinite(boundaryDistance) && boundaryDistance <= radius;
+  }
+
   function magnifierContact({ touchesCorrect = false, selectedName = null,
                               snapHint = false, placed = false } = {}) {
     const canPlace = !placed && !!selectedName && !!touchesCorrect;
@@ -100,5 +109,5 @@
     return magnifierContact(options).hintName;
   }
 
-  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface, magnifierSourceRadius, magnifierContact, magnifierHintName };
+  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface, magnifierSourceRadius, crosshairCircleContact, magnifierContact, magnifierHintName };
 });

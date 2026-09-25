@@ -97,3 +97,22 @@ test('magnifier hint name follows physical contact only', () => {
   assert.equal(h.magnifierHintName({touchesCorrect:true, selectedName:'新店區', snapHint:true}), '新店區');
   assert.equal(h.magnifierHintName({touchesCorrect:false, selectedName:'新店區', snapHint:true}), null);
 });
+
+
+test('crosshair circle stays in contact while its centre is inside the correct region', () => {
+  assert.equal(h.crosshairCircleContact({centerInside:true, boundaryDistance:50, radius:3.4}), true);
+  assert.equal(h.crosshairCircleContact({centerInside:true, boundaryDistance:Infinity, radius:3.4}), true);
+});
+
+test('crosshair circle edge contact is precise and does not use the old wide mobile radius', () => {
+  assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:3.39, radius:3.4}), true);
+  assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:3.41, radius:3.4}), false);
+  assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:24, radius:3.4}), false);
+});
+
+test('crosshair contact helper is geometry-agnostic so inset islands use the same rule', () => {
+  for (const name of ['澎湖縣','金門縣','連江縣']) {
+    const contact = h.crosshairCircleContact({centerInside:true, boundaryDistance:Infinity, radius:3.4});
+    assert.equal(contact, true, `${name} centre-inside contact should count`);
+  }
+});
