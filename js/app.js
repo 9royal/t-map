@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.04.6';
+  const VERSION = '1.05';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -24,14 +24,12 @@
     drag: null
   };
 
-  const screens = ['home','taiwan','complete','explorer','town'];
+  const screens = ['catalog','home','taiwan','complete','explorer','town'];
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   let audioContext = null;
+  let taiwanDataPromise = null;
   const MOBILE_BREAKPOINT = 640;
-  const MAGNIFIER_SCALE = 2.35;
-  // CSS crosshair: 12px content + 2px border on each side = 16px outer diameter.
-  const MAGNIFIER_CROSSHAIR_OUTER_RADIUS = 8;
   const mobileMapStates = new WeakMap();
   let magnifier = null;
 
@@ -230,41 +228,8 @@
     return { x: drag?.x, y: drag?.y };
   }
 
-  function magnifierContactRadius() {
-    return TMapHints.magnifierSourceRadius(MAGNIFIER_CROSSHAIR_OUTER_RADIUS, MAGNIFIER_SCALE);
-  }
-
-  function magnifierContactDecision(drag) {
-    const correct = correctTargetPath(drag?.name, drag?.level);
-    const placed = !!correct?.classList.contains('is-placed');
-    const hasAim = Number.isFinite(drag?.aimX) && Number.isFinite(drag?.aimY);
-    const radius = magnifierContactRadius();
-    let touchesCorrect = false;
-    if (correct && !placed && hasAim) {
-      // v1.04.6: a crosshair circle overlaps the correct region when either its
-      // centre is already inside the fill, or its visible edge reaches the path.
-      // Browser hit-testing is intentionally used for the centre: this is more
-      // reliable on iOS/WebKit and works for the separate Penghu/Kinmen/Lienchiang insets.
-      const centerHit = hitRegionAt(drag.aimX, drag.aimY, drag.level) === correct;
-      const boundaryDistance = TMapHints.geometryDistance(correct, drag.aimX, drag.aimY, radius);
-      touchesCorrect = TMapHints.crosshairCircleContact({
-        centerInside: centerHit,
-        boundaryDistance,
-        radius
-      });
-    }
-    return TMapHints.magnifierContact({
-      touchesCorrect,
-      selectedName: drag?.name || null,
-      snapHint: state.settings.snapHint,
-      placed
-    });
-  }
-
   function updateMagnifier(drag) {
     drag.usingMagnifier = false;
-    drag.magnifierTouchesCorrect = false;
-    drag.magnifierContactRadius = magnifierContactRadius();
     drag.aimX = drag.x;
     drag.aimY = drag.y;
     if (!state.settings.magnifier || !isMobileLayout() || drag.pointerType !== 'touch') {
@@ -294,7 +259,7 @@
       mag.clone = clone;
     }
     syncMagnifierClasses(source, mag.clone);
-    const scale = MAGNIFIER_SCALE;
+    const scale = 2.35;
     const localX = geometry.centerX - rect.left;
     const localY = geometry.centerY - rect.top;
     Object.assign(mag.clone.style, {
@@ -310,13 +275,11 @@
     drag.usingMagnifier = true;
     drag.aimX = geometry.centerX;
     drag.aimY = geometry.centerY;
-    // v1.04.6: hint and final placement share the same visible-circle rule.
-    // The visible crosshair is a 16px outer circle inside a 2.35x lens, so the
-    // equivalent contact radius on the source map is about 3.4 CSS pixels.
-    // A hint appears only when that circle actually touches the selected region.
-    const contact = magnifierContactDecision(drag);
-    drag.magnifierTouchesCorrect = contact.canPlace;
-    applyMagnifierCorrectHint(contact.hintName);
+    const lensResult = measureDrop(drag.aimX, drag.aimY, drag.level, drag.name, drag.radius, drag.hitRadius);
+    const lensHintName = TMapHints.correctHintSurface(lensResult.showCorrectHint, true) === 'magnifier'
+      ? lensResult.correct?.dataset.regionName || null
+      : null;
+    applyMagnifierCorrectHint(lensHintName);
   }
 
 
@@ -610,6 +573,18 @@
     if (state.data.counties.length !== 22) console.warn('Expected 22 counties, received', state.data.counties.length);
   }
 
+  async function ensureTaiwanData() {
+    if (state.data.counties.length === 22 && state.data.towns.length === 368) return state.data;
+    if (!taiwanDataPromise) {
+      taiwanDataPromise = loadData().catch(err => {
+        taiwanDataPromise = null;
+        throw err;
+      });
+    }
+    await taiwanDataPromise;
+    return state.data;
+  }
+
   function createProjection(features, width, height, pad = 16) {
     return d3.geoMercator().fitExtent([[pad, pad], [width - pad, height - pad]], { type:'FeatureCollection', features });
   }
@@ -740,8 +715,6 @@
     if (drag.frame) cancelAnimationFrame(drag.frame);
     if (!cancelled && drag.active && state.settings.magnifier) updateMagnifier(drag);
     const dropPoint = dragInteractionPoint(drag);
-    const magnifierDrop = !!drag.usingMagnifier;
-    const magnifierCanPlace = !!drag.magnifierTouchesCorrect;
 
     document.removeEventListener('pointermove', drag.move);
     document.removeEventListener('pointerup', drag.up);
@@ -763,22 +736,6 @@
     if (!cancelled && drag.active) {
       const stage = activeMapStage(drag.level);
       if (!TMapHints.withinRect(dropPoint.x, dropPoint.y, stage?.getBoundingClientRect())) return;
-
-      if (magnifierDrop) {
-        // With the magnifier on, both the yellow hint and final snap use exactly
-        // the same crosshair-circle contact test. No wider 24/30px fallback is
-        // allowed here; if the circle does not touch the selected correct region,
-        // releasing the piece must not snap it into place.
-        if (magnifierCanPlace) {
-          state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
-          placeSelected(drag.level);
-        } else {
-          const feedback = drag.level === 'county' ? $('#taiwan-feedback') : $('#town-feedback');
-          setFeedback(feedback, '準星小圓圈尚未碰到正確區域，再對準一點。', 'try');
-        }
-        return;
-      }
-
       const result = measureDrop(dropPoint.x, dropPoint.y, drag.level, drag.name, drag.radius, drag.hitRadius);
       if (result.canPlace) {
         state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
@@ -806,8 +763,6 @@
       pointerId: event.pointerId, x: event.clientX, y: event.clientY,
       startX: event.clientX, startY: event.clientY, active: false,
       pointerType: event.pointerType || 'mouse',
-      magnifierTouchesCorrect: false,
-      magnifierContactRadius: magnifierContactRadius(),
       radius: event.pointerType === 'touch' && isMobileLayout() ? (level === 'town' ? 30 : 24) : (event.pointerType === 'touch' ? 24 : 18),
       hitRadius: event.pointerType === 'touch' && isMobileLayout() ? (level === 'town' ? 30 : 24) : 0,
       frame: 0
@@ -828,9 +783,7 @@
         moveGhost(ghost, drag.x, drag.y);
         updateMagnifier(drag);
         const point = dragInteractionPoint(drag);
-        const hoverRadius = drag.usingMagnifier ? drag.magnifierContactRadius : drag.radius;
-        const hoverHitRadius = drag.usingMagnifier ? drag.magnifierContactRadius : drag.hitRadius;
-        highlightTargetAt(point.x, point.y, name, level, hoverRadius, hoverHitRadius);
+        highlightTargetAt(point.x, point.y, name, level, drag.radius, drag.hitRadius);
       });
     };
     drag.up = e => {
@@ -1190,15 +1143,101 @@
     updateSettingChips();
   }
 
-  function updateHomeProgress() {
-    $('#home-county-progress').textContent = `${state.progress.taiwan.length} / 22`;
-    const completed = state.data.counties.length
+  function taiwanCompletedCountyCount() {
+    return state.data.counties.length
       ? state.data.counties.filter(f => {
-          const name = countyName(f); const total = townsForCounty(name).length; const done = state.progress.towns[name]?.length || 0;
+          const name = countyName(f);
+          const total = townsForCounty(name).length;
+          const done = state.progress.towns[name]?.length || 0;
           return total > 0 && done === total;
         }).length
       : Object.values(state.progress.towns).filter(v => Array.isArray(v) && v.length).length;
+  }
+
+  function catalogProgressText(mapId) {
+    if (mapId !== 'taiwan') return '';
+    const countyProgress = TMapEngine.progressStatus(22, state.progress.taiwan);
+    return `縣市 ${countyProgress.done} / ${countyProgress.total} · 完成縣市探索 ${taiwanCompletedCountyCount()} / 22`;
+  }
+
+  function renderMapCatalog() {
+    const host = $('#map-catalog');
+    if (!host || !window.TMapRegistry) return;
+    host.innerHTML = '';
+    TMapRegistry.allMaps().forEach(map => {
+      const article = document.createElement('article');
+      article.className = `map-catalog-card ${map.status === 'ready' ? 'is-ready' : 'is-planned'}`;
+      article.dataset.mapId = map.id;
+
+      const mark = document.createElement('div');
+      mark.className = 'map-catalog-mark';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.textContent = map.mark;
+
+      const body = document.createElement('div');
+      body.className = 'map-catalog-body';
+      const status = map.status === 'ready' ? '可遊玩' : '資料建置中';
+      body.innerHTML = `<div class="map-catalog-meta"><span>${status}</span></div><h2>${map.title}</h2><p class="map-catalog-subtitle">${map.subtitle}</p><p>${map.description}</p>`;
+      const progress = catalogProgressText(map.id);
+      if (progress) {
+        const progressEl = document.createElement('p');
+        progressEl.className = 'map-catalog-progress';
+        progressEl.dataset.catalogProgress = map.id;
+        progressEl.textContent = progress;
+        body.append(progressEl);
+      }
+
+      const actions = document.createElement('div');
+      actions.className = 'map-catalog-actions';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = map.status === 'ready' ? 'button primary' : 'button';
+      if (map.status === 'ready') {
+        button.dataset.action = 'open-map';
+        button.dataset.mapId = map.id;
+        button.textContent = '進入地圖';
+      } else {
+        button.disabled = true;
+        button.textContent = '規劃中';
+      }
+      actions.append(button);
+      article.append(mark, body, actions);
+      host.append(article);
+    });
+  }
+
+  function updateCatalogProgress() {
+    const el = document.querySelector('[data-catalog-progress="taiwan"]');
+    if (el) el.textContent = catalogProgressText('taiwan');
+  }
+
+  function openPlatformCatalog() {
+    renderMapCatalog();
+    showScreen('catalog', false);
+  }
+
+  async function openMapModule(mapId) {
+    const map = window.TMapRegistry?.getMap(mapId);
+    if (!map || map.status !== 'ready') return;
+    if (map.id === 'taiwan') {
+      try {
+        await ensureTaiwanData();
+        state.settings.speechMode = TMapSpeech.normalizeMode(state.settings.speechMode, TMapRegistry.speechModesFor('taiwan'));
+        updateSettingChips();
+        updateHomeProgress();
+        showScreen('home', false);
+      } catch (err) {
+        console.error(err);
+        showSpeechNotice('臺灣地圖資料沒有成功載入，請重新整理後再試。');
+      }
+    }
+  }
+
+  function updateHomeProgress() {
+    $('#home-county-progress').textContent = `${state.progress.taiwan.length} / 22`;
+    const completed = taiwanCompletedCountyCount();
     $('#home-town-progress').textContent = `${completed} / 22`;
+    updateCatalogProgress();
   }
 
   function continueProgress() {
@@ -1217,6 +1256,8 @@
     document.addEventListener('click', event => {
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (!action) return;
+      if (action === 'open-map') openMapModule(event.target.closest('[data-map-id]')?.dataset.mapId || event.target.dataset.mapId);
+      if (action === 'go-catalog') openPlatformCatalog();
       if (action === 'start-taiwan') openTaiwanPuzzle();
       if (action === 'continue') continueProgress();
       if (action === 'open-explorer') openExplorer();
@@ -1268,22 +1309,18 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.6</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.6 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {
     loadState();
     applyTheme();
+    if (!window.TMapRegistry || !window.TMapEngine) return showLoadError(new Error('多地圖平台核心模組沒有載入。'));
     bindControls();
     updateSettingChips();
+    renderMapCatalog();
     updateHomeProgress();
-    try {
-      await loadData();
-      updateHomeProgress();
-      showScreen('home', false);
-    } catch (err) {
-      showLoadError(err);
-    }
+    showScreen('catalog', false);
   }
 
   init();

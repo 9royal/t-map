@@ -10,7 +10,7 @@ const dist = path.join(root, 'dist');
 if (!existsSync(dist)) throw new Error('找不到 dist/；請先執行 npm run build。');
 
 const expected = [
-  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js', 'js/mobile-map.js', 'js/speech-profiles.js',
+  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js', 'js/mobile-map.js', 'js/map-registry.js', 'js/map-engine.js', 'js/speech-profiles.js',
   'lib/d3.min.js', 'lib/topojson-client.min.js',
   'data/counties-10t.json', 'data/towns-10t.json',
   'build-info.json'
@@ -60,9 +60,22 @@ const html = await readFile(path.join(dist, 'index.html'), 'utf8');
 const app = await readFile(path.join(dist, 'js/app.js'), 'utf8');
 const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
 const mobile = await readFile(path.join(dist, 'js/mobile-map.js'), 'utf8');
+const registry = await readFile(path.join(dist, 'js/map-registry.js'), 'utf8');
+const engine = await readFile(path.join(dist, 'js/map-engine.js'), 'utf8');
 const speech = await readFile(path.join(dist, 'js/speech-profiles.js'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
-if (pkg.version !== '1.4.6' || version !== 'T map v1.04.6' || info.version !== '1.04.6' || !html.includes('T map v1.04.6') || /T map v1\.0[0-3](?!\.)/.test(html) || !app.includes("const VERSION = '1.04.6'") || !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') || !mobile.includes('drawerStateFromSwipe') || !speech.includes('taiwanese') || !speech.includes('english') || !helper.includes('correctHintSurface') || !helper.includes('magnifierHintName') || !helper.includes('magnifierContact') || !helper.includes('magnifierSourceRadius') || !helper.includes('crosshairCircleContact') || !app.includes('applyMagnifierCorrectHint') || !app.includes('magnifierContactDecision') || !app.includes('magnifierCanPlace') || !html.includes('style.css?v=1.04.6') || !html.includes('app.js?v=1.04.6')) {
-  throw new Error('v1.04.6 版本資訊不一致。');
+if (pkg.version !== '1.5.0' || version !== 'T map v1.05' || info.version !== '1.05' ||
+    !html.includes('T map v1.05') || !app.includes("const VERSION = '1.05'") ||
+    !html.includes('screen-catalog') || !html.includes('map-registry.js?v=1.05') || !html.includes('map-engine.js?v=1.05') ||
+    !registry.includes("id: 'taiwan'") || !registry.includes("id: 'china-provincial'") || !registry.includes("id: 'world'") ||
+    !registry.includes("status: 'ready'") || !registry.includes("status: 'planned'") || !engine.includes('progressStatus') || !engine.includes('playableRegions') ||
+    !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') ||
+    !speech.includes('taiwanese') || !speech.includes('english') || !speech.includes('modesForMap') ||
+    !helper.includes('correctHintSurface') || !app.includes('applyMagnifierCorrectHint') ||
+    !html.includes('style.css?v=1.05') || !html.includes('app.js?v=1.05')) {
+  throw new Error('v1.05 版本或多地圖平台資訊不一致。');
 }
-console.log('✓ v1.04.6 版本資訊一致');
+if (!Array.isArray(info.platformMaps) || info.platformMaps.length !== 3 || info.readyMaps?.[0] !== 'taiwan') {
+  throw new Error('v1.05 build-info 多地圖平台資料異常。');
+}
+console.log('✓ v1.05 版本與多地圖平台資訊一致');

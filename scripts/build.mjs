@@ -57,13 +57,15 @@ if (townCount !== 368) throw new Error(`鄉鎮市區圖資完整性檢查失敗�
 
 const stamp = {
   app: 'T map',
-  version: '1.04.6',
+  version: '1.05',
   builtAt: new Date().toISOString(),
   localizedAssets: true,
   countyCount,
   townCount,
-  runtimeExternalCdn: false
+  runtimeExternalCdn: false,
+  platformMaps: ['taiwan', 'china-provincial', 'world'],
+  readyMaps: ['taiwan']
 };
 await writeFile(path.join(dist, 'build-info.json'), JSON.stringify(stamp, null, 2) + '\n', 'utf8');
 
-console.log(`T map v1.04.6 build completed: ${countyCount} counties, ${townCount} towns.`);
+console.log(`T map v1.05 build completed: ${countyCount} counties, ${townCount} towns.`);

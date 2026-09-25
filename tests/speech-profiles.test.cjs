@@ -21,3 +21,10 @@ test('English profile is available for future world-map modules', () => {
   assert.equal(speech.getProfile('english').lang, 'en');
   assert.equal(speech.voiceMatches({ name: 'Samantha', lang: 'en-US' }, 'english'), true);
 });
+
+
+test('map-specific speech modes are prepared for future modules', () => {
+  assert.deepEqual(speech.modesForMap('taiwan'), ['mandarin', 'taiwanese']);
+  assert.deepEqual(speech.modesForMap('china-provincial'), ['mandarin']);
+  assert.deepEqual(speech.modesForMap('world'), ['mandarin', 'english']);
+});

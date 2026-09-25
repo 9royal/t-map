@@ -1,8 +1,8 @@
 {
   "name": "t-map",
-  "version": "1.4.6",
+  "version": "1.5.0",
   "private": true,
-  "description": "T map v1.04.6 - 放大鏡準星內部與外島接觸修正版",
+  "description": "T map v1.05 - 多地圖平台基礎版",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",

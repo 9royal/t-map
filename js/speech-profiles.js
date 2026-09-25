@@ -27,6 +27,15 @@
   });
 
   const TAIWAN_MODES = Object.freeze(['mandarin', 'taiwanese']);
+  const MAP_MODES = Object.freeze({
+    taiwan: TAIWAN_MODES,
+    'china-provincial': Object.freeze(['mandarin']),
+    world: Object.freeze(['mandarin', 'english'])
+  });
+
+  function modesForMap(mapId) {
+    return (MAP_MODES[mapId] || Object.freeze(['mandarin'])).slice();
+  }
 
   function normalizeMode(mode, allowed = TAIWAN_MODES) {
     return allowed.includes(mode) ? mode : allowed[0];
@@ -56,5 +65,5 @@
     return allowed[(index + 1) % allowed.length];
   }
 
-  return { PROFILES, TAIWAN_MODES, normalizeMode, getProfile, voiceMatches, findVoice, nextMode };
+  return { PROFILES, TAIWAN_MODES, MAP_MODES, modesForMap, normalizeMode, getProfile, voiceMatches, findVoice, nextMode };
 });
