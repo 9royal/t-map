@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.03';
+  const VERSION = '1.04.6';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -15,7 +15,7 @@
   };
 
   const state = {
-    settings: { speech: true, labels: true, snapHint: true, effects: true, theme: 'light' },
+    settings: { speech: true, speechMode: 'mandarin', labels: true, snapHint: true, magnifier: true, effects: true, theme: 'light' },
     progress: { taiwan: [], towns: {} },
     last: { screen: 'home', county: null },
     data: { counties: [], towns: [] },
@@ -28,6 +28,390 @@
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   let audioContext = null;
+  const MOBILE_BREAKPOINT = 640;
+  const MAGNIFIER_SCALE = 2.35;
+  // CSS crosshair: 12px content + 2px border on each side = 16px outer diameter.
+  const MAGNIFIER_CROSSHAIR_OUTER_RADIUS = 8;
+  const mobileMapStates = new WeakMap();
+  let magnifier = null;
+
+  function isMobileLayout() {
+    return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
+  }
+
+
+  function syncMobilePuzzleClass() {
+    const active = $('.screen.is-active')?.id;
+    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town'));
+  }
+
+  function setSelectedDisplay(level, name = null) {
+    const text = name ? (state.settings.labels ? name : '已選取一塊拼圖') : '尚未選取';
+    const ids = level === 'county'
+      ? ['#selected-name', '#taiwan-mobile-selected']
+      : ['#town-selected-name', '#town-mobile-selected'];
+    ids.forEach(id => { const el = $(id); if (el) el.textContent = text; });
+  }
+
+  function setDrawerState(panel, drawerState = 'collapsed') {
+    if (!panel) return;
+    const stateName = TMapMobile.normalizeDrawerState(drawerState);
+    panel.dataset.drawerState = stateName;
+    panel.classList.toggle('mobile-expanded', stateName !== 'collapsed');
+    panel.classList.toggle('drawer-half', stateName === 'half');
+    panel.classList.toggle('drawer-full', stateName === 'full');
+    const button = panel.querySelector('.mobile-drawer-toggle');
+    if (button) {
+      button.setAttribute('aria-expanded', String(stateName !== 'collapsed'));
+      button.textContent = stateName === 'collapsed' ? '半展開拼圖'
+        : stateName === 'half' ? '全展開拼圖' : '收合拼圖';
+    }
+  }
+
+  function toggleMobileDrawer(level) {
+    const panel = $(`.piece-panel[data-drawer="${level}"]`);
+    if (!panel) return;
+    setDrawerState(panel, TMapMobile.cycleDrawerState(panel.dataset.drawerState));
+  }
+
+  function collapseAllDrawers() {
+    $$('.piece-panel[data-drawer]').forEach(panel => setDrawerState(panel, 'collapsed'));
+  }
+
+  function bindDrawerGestures() {
+    $$('.mobile-drawer-bar').forEach(bar => {
+      if (bar.dataset.drawerGestureBound) return;
+      bar.dataset.drawerGestureBound = 'true';
+      let startY = null;
+      let pointerId = null;
+      bar.addEventListener('pointerdown', event => {
+        if (!isMobileLayout() || event.pointerType === 'mouse' || event.target.closest('button')) return;
+        pointerId = event.pointerId;
+        startY = event.clientY;
+        bar.setPointerCapture?.(pointerId);
+      });
+      const finish = event => {
+        if (pointerId === null || event.pointerId !== pointerId) return;
+        const panel = bar.closest('.piece-panel');
+        const deltaY = event.clientY - startY;
+        setDrawerState(panel, TMapMobile.drawerStateFromSwipe(panel?.dataset.drawerState, deltaY));
+        if (bar.hasPointerCapture?.(pointerId)) bar.releasePointerCapture(pointerId);
+        pointerId = null;
+        startY = null;
+      };
+      bar.addEventListener('pointerup', finish);
+      bar.addEventListener('pointercancel', event => {
+        if (pointerId !== null && event.pointerId === pointerId) {
+          if (bar.hasPointerCapture?.(pointerId)) bar.releasePointerCapture(pointerId);
+          pointerId = null;
+          startY = null;
+        }
+      });
+    });
+  }
+
+  function getMapState(svg) {
+    if (!svg) return null;
+    let mapState = mobileMapStates.get(svg);
+    if (!mapState) {
+      const base = TMapMobile.parseViewBox(svg.dataset.baseViewBox || svg.getAttribute('viewBox'));
+      if (!base) return null;
+      svg.dataset.baseViewBox = TMapMobile.formatViewBox(base);
+      mapState = { base, pointers: new Map(), moved: false, pinchDistance: 0, lastPoint: null };
+      mobileMapStates.set(svg, mapState);
+    }
+    return mapState;
+  }
+
+  function currentViewBox(svg) {
+    return TMapMobile.parseViewBox(svg?.getAttribute('viewBox')) || getMapState(svg)?.base || null;
+  }
+
+  function applyViewBox(svg, box) {
+    if (!svg || !box) return;
+    svg.setAttribute('viewBox', TMapMobile.formatViewBox(box));
+    const mapState = getMapState(svg);
+    svg.classList.toggle('is-map-zoomed', !!mapState && TMapMobile.isZoomed(box, mapState.base));
+  }
+
+  function resetMapView(svg) {
+    const mapState = getMapState(svg);
+    if (!mapState) return;
+    applyViewBox(svg, mapState.base);
+    mapState.pointers.clear();
+    mapState.moved = false;
+    mapState.pinchDistance = 0;
+    mapState.lastPoint = null;
+  }
+
+  function clientToSvgPoint(svg, clientX, clientY) {
+    const matrix = svg?.getScreenCTM?.();
+    if (!matrix) return null;
+    return new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+  }
+
+  function zoomMap(svg, factor, clientX = null, clientY = null) {
+    const mapState = getMapState(svg);
+    const current = currentViewBox(svg);
+    if (!mapState || !current) return;
+    const focus = Number.isFinite(clientX) && Number.isFinite(clientY)
+      ? clientToSvgPoint(svg, clientX, clientY)
+      : { x: current.x + current.width / 2, y: current.y + current.height / 2 };
+    applyViewBox(svg, TMapMobile.zoomViewBox(current, mapState.base, factor, focus));
+  }
+
+  function panMap(svg, dxCss, dyCss) {
+    const mapState = getMapState(svg);
+    const current = currentViewBox(svg);
+    const rect = svg?.getBoundingClientRect?.();
+    if (!mapState || !current || !rect) return;
+    applyViewBox(svg, TMapMobile.panViewBox(current, mapState.base, dxCss, dyCss, rect.width, rect.height));
+  }
+
+  function nearestTargetAt(x, y, level, radius = 28, scope = null) {
+    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : $('#town-map'));
+    if (!root) return null;
+    let best = null;
+    let bestDistance = Infinity;
+    root.querySelectorAll(`.target-region[data-level="${level}"]:not(.is-placed)`).forEach(path => {
+      const distance = TMapHints.geometryDistance(path, x, y, radius);
+      if (distance <= radius && distance < bestDistance) {
+        best = path;
+        bestDistance = distance;
+      }
+    });
+    return best;
+  }
+
+  function flashTarget(path, duration = 320) {
+    if (!path || path.classList.contains('is-placed')) return;
+    path.classList.add('is-hovered');
+    setTimeout(() => path.classList.remove('is-hovered'), duration);
+  }
+
+  function ensureMagnifier() {
+    if (magnifier) return magnifier;
+    const el = document.createElement('div');
+    el.className = 'map-magnifier';
+    el.setAttribute('aria-hidden', 'true');
+    el.innerHTML = '<div class="map-magnifier-surface"></div><div class="map-magnifier-label"></div>';
+    document.body.append(el);
+    magnifier = { el, surface: el.querySelector('.map-magnifier-surface'), label: el.querySelector('.map-magnifier-label'), source: null, clone: null };
+    return magnifier;
+  }
+
+  function applyMagnifierCorrectHint(regionName = null) {
+    if (!magnifier?.clone) return;
+    magnifier.clone.querySelectorAll('.target-region.is-near').forEach(el => el.classList.remove('is-near'));
+    if (!regionName) return;
+    const target = Array.from(magnifier.clone.querySelectorAll('.target-region')).find(el => el.dataset.regionName === regionName);
+    if (target && !target.classList.contains('is-placed')) target.classList.add('is-near');
+  }
+
+  function hideMagnifier() {
+    if (magnifier) {
+      magnifier.el.classList.remove('is-visible');
+      applyMagnifierCorrectHint(null);
+    }
+  }
+
+  function syncMagnifierClasses(source, clone) {
+    const sourcePaths = source.querySelectorAll('.target-region');
+    const clonePaths = clone.querySelectorAll('.target-region');
+    sourcePaths.forEach((path, index) => {
+      if (clonePaths[index]) clonePaths[index].setAttribute('class', path.getAttribute('class') || 'target-region');
+    });
+  }
+
+  function dragInteractionPoint(drag) {
+    if (drag?.usingMagnifier && Number.isFinite(drag.aimX) && Number.isFinite(drag.aimY)) {
+      return { x: drag.aimX, y: drag.aimY };
+    }
+    return { x: drag?.x, y: drag?.y };
+  }
+
+  function magnifierContactRadius() {
+    return TMapHints.magnifierSourceRadius(MAGNIFIER_CROSSHAIR_OUTER_RADIUS, MAGNIFIER_SCALE);
+  }
+
+  function magnifierContactDecision(drag) {
+    const correct = correctTargetPath(drag?.name, drag?.level);
+    const placed = !!correct?.classList.contains('is-placed');
+    const hasAim = Number.isFinite(drag?.aimX) && Number.isFinite(drag?.aimY);
+    const radius = magnifierContactRadius();
+    let touchesCorrect = false;
+    if (correct && !placed && hasAim) {
+      // v1.04.6: a crosshair circle overlaps the correct region when either its
+      // centre is already inside the fill, or its visible edge reaches the path.
+      // Browser hit-testing is intentionally used for the centre: this is more
+      // reliable on iOS/WebKit and works for the separate Penghu/Kinmen/Lienchiang insets.
+      const centerHit = hitRegionAt(drag.aimX, drag.aimY, drag.level) === correct;
+      const boundaryDistance = TMapHints.geometryDistance(correct, drag.aimX, drag.aimY, radius);
+      touchesCorrect = TMapHints.crosshairCircleContact({
+        centerInside: centerHit,
+        boundaryDistance,
+        radius
+      });
+    }
+    return TMapHints.magnifierContact({
+      touchesCorrect,
+      selectedName: drag?.name || null,
+      snapHint: state.settings.snapHint,
+      placed
+    });
+  }
+
+  function updateMagnifier(drag) {
+    drag.usingMagnifier = false;
+    drag.magnifierTouchesCorrect = false;
+    drag.magnifierContactRadius = magnifierContactRadius();
+    drag.aimX = drag.x;
+    drag.aimY = drag.y;
+    if (!state.settings.magnifier || !isMobileLayout() || drag.pointerType !== 'touch') {
+      hideMagnifier();
+      return;
+    }
+    const geometry = TMapMobile.magnifierGeometry(
+      drag.x, drag.y, window.innerWidth, window.innerHeight, 112, 42, 8
+    );
+    if (!geometry) return hideMagnifier();
+    const hit = document.elementFromPoint(geometry.centerX, geometry.centerY);
+    const source = hit?.closest?.('svg');
+    if (!source || !activeMapStage(drag.level)?.contains(source)) return hideMagnifier();
+    const rect = source.getBoundingClientRect();
+    if (!TMapHints.withinRect(geometry.centerX, geometry.centerY, rect)) return hideMagnifier();
+
+    const mag = ensureMagnifier();
+    if (mag.source !== source || !mag.clone) {
+      mag.surface.replaceChildren();
+      const clone = source.cloneNode(true);
+      clone.removeAttribute('id');
+      clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      clone.removeAttribute('role');
+      clone.setAttribute('aria-hidden', 'true');
+      mag.surface.append(clone);
+      mag.source = source;
+      mag.clone = clone;
+    }
+    syncMagnifierClasses(source, mag.clone);
+    const scale = MAGNIFIER_SCALE;
+    const localX = geometry.centerX - rect.left;
+    const localY = geometry.centerY - rect.top;
+    Object.assign(mag.clone.style, {
+      width: `${rect.width}px`, height: `${rect.height}px`,
+      left: `${geometry.size / 2 - localX * scale}px`,
+      top: `${geometry.size / 2 - localY * scale}px`,
+      transformOrigin: '0 0', transform: `scale(${scale})`
+    });
+    mag.el.style.left = `${geometry.left}px`;
+    mag.el.style.top = `${geometry.top}px`;
+    mag.label.textContent = state.settings.labels ? drag.name : '行政區拼圖';
+    mag.el.classList.add('is-visible');
+    drag.usingMagnifier = true;
+    drag.aimX = geometry.centerX;
+    drag.aimY = geometry.centerY;
+    // v1.04.6: hint and final placement share the same visible-circle rule.
+    // The visible crosshair is a 16px outer circle inside a 2.35x lens, so the
+    // equivalent contact radius on the source map is about 3.4 CSS pixels.
+    // A hint appears only when that circle actually touches the selected region.
+    const contact = magnifierContactDecision(drag);
+    drag.magnifierTouchesCorrect = contact.canPlace;
+    applyMagnifierCorrectHint(contact.hintName);
+  }
+
+
+  function handleMobileMapTap(event, svg, level) {
+    if (!isMobileLayout()) return;
+    if (svg.dataset.suppressMapClick) {
+      event.preventDefault();
+      event.stopPropagation();
+      delete svg.dataset.suppressMapClick;
+      return;
+    }
+    if (event.target.closest?.('.target-region')) return;
+    const radius = level === 'town' ? 30 : 24;
+    const candidate = nearestTargetAt(event.clientX, event.clientY, level, radius, svg);
+    if (!candidate) return;
+    flashTarget(candidate);
+    if (!state.selected || state.selected.level !== level) speak(candidate.dataset.regionName);
+    else attemptPlacement(candidate.dataset.regionName, level);
+  }
+
+  function bindMobileMap(svg, level) {
+    if (!svg || svg.dataset.mobileMapBound) return;
+    svg.dataset.mobileMapBound = 'true';
+    svg.dataset.level = level;
+    getMapState(svg);
+    svg.addEventListener('click', event => handleMobileMapTap(event, svg, level));
+    if (!svg.classList.contains('mobile-zoomable')) return;
+
+    const mapState = getMapState(svg);
+    svg.addEventListener('pointerdown', event => {
+      if (!isMobileLayout() || event.pointerType === 'mouse') return;
+      mapState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      mapState.moved = false;
+      const zoomed = TMapMobile.isZoomed(currentViewBox(svg), mapState.base);
+      if (zoomed) svg.setPointerCapture?.(event.pointerId);
+      if (mapState.pointers.size === 1) mapState.lastPoint = { x: event.clientX, y: event.clientY };
+      if (mapState.pointers.size === 2) {
+        const [a,b] = [...mapState.pointers.values()];
+        mapState.pinchDistance = Math.hypot(a.x-b.x, a.y-b.y);
+        for (const id of mapState.pointers.keys()) {
+          try { svg.setPointerCapture?.(id); } catch {}
+        }
+      }
+    });
+    svg.addEventListener('pointermove', event => {
+      if (!isMobileLayout() || !mapState.pointers.has(event.pointerId)) return;
+      mapState.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+      if (mapState.pointers.size >= 2) {
+        event.preventDefault();
+        const [a,b] = [...mapState.pointers.values()];
+        const distance = Math.hypot(a.x-b.x, a.y-b.y);
+        const center = { x:(a.x+b.x)/2, y:(a.y+b.y)/2 };
+        if (mapState.pinchDistance > 0 && distance > 0) {
+          const factor = TMapMobile.clamp(distance / mapState.pinchDistance, .82, 1.22);
+          zoomMap(svg, factor, center.x, center.y);
+          mapState.moved = true;
+        }
+        mapState.pinchDistance = distance;
+        return;
+      }
+      const current = currentViewBox(svg);
+      if (!mapState.lastPoint || !TMapMobile.isZoomed(current, mapState.base)) {
+        mapState.lastPoint = { x:event.clientX, y:event.clientY };
+        return;
+      }
+      const dx = event.clientX - mapState.lastPoint.x;
+      const dy = event.clientY - mapState.lastPoint.y;
+      if (Math.hypot(dx,dy) >= 2) {
+        event.preventDefault();
+        panMap(svg, dx, dy);
+        mapState.moved = true;
+        mapState.lastPoint = { x:event.clientX, y:event.clientY };
+      }
+    }, { passive:false });
+    const finishPointer = event => {
+      if (!mapState.pointers.has(event.pointerId)) return;
+      if (svg.hasPointerCapture?.(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+      mapState.pointers.delete(event.pointerId);
+      if (mapState.moved) {
+        svg.dataset.suppressMapClick = 'true';
+        setTimeout(() => { delete svg.dataset.suppressMapClick; }, 350);
+      }
+      if (mapState.pointers.size === 1) {
+        const remaining = [...mapState.pointers.values()][0];
+        mapState.lastPoint = { ...remaining };
+      } else if (!mapState.pointers.size) {
+        mapState.lastPoint = null;
+        mapState.pinchDistance = 0;
+        mapState.moved = false;
+      }
+    };
+    svg.addEventListener('pointerup', finishPointer);
+    svg.addEventListener('pointercancel', finishPointer);
+  }
+
 
   function applyTheme() {
     const theme = state.settings.theme === 'dark' ? 'dark' : 'light';
@@ -91,6 +475,7 @@
       const saved = JSON.parse(raw);
       if (saved.settings) Object.assign(state.settings, saved.settings);
       if (!['light','dark'].includes(state.settings.theme)) state.settings.theme = 'light';
+      state.settings.speechMode = TMapSpeech.normalizeMode(state.settings.speechMode);
       if (saved.progress) {
         state.progress.taiwan = Array.isArray(saved.progress.taiwan) ? saved.progress.taiwan : [];
         state.progress.towns = saved.progress.towns || {};
@@ -113,8 +498,11 @@
 
   function showScreen(name, remember = true) {
     if (state.drag) endDrag(true);
+    hideMagnifier();
+    collapseAllDrawers();
     clearNearTargets();
     screens.forEach(key => $('#screen-' + key)?.classList.toggle('is-active', key === name));
+    syncMobilePuzzleClass();
     if (remember) {
       state.last.screen = name;
       state.last.county = state.currentCounty;
@@ -146,15 +534,59 @@
     return String(feature?.properties?.COUNTYCODE || feature?.id || countyName(feature));
   }
 
-  function speak(text) {
+  let speechRetryTimer = 0;
+  let speechNoticeTimer = 0;
+
+  function showSpeechNotice(message) {
+    let el = $('#speech-notice');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'speech-notice';
+      el.className = 'speech-notice';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      document.body.append(el);
+    }
+    el.textContent = message;
+    el.classList.add('is-visible');
+    clearTimeout(speechNoticeTimer);
+    speechNoticeTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
+  }
+
+  function speak(text, retry = false) {
     if (!state.settings.speech || !('speechSynthesis' in window)) return;
+    const profile = TMapSpeech.getProfile(state.settings.speechMode);
+    const voices = window.speechSynthesis.getVoices();
+    const voice = TMapSpeech.findVoice(voices, state.settings.speechMode);
+
+    // Chrome/WebKit can briefly report an empty voice list before voiceschanged.
+    if (!voices.length && !retry) {
+      clearTimeout(speechRetryTimer);
+      speechRetryTimer = setTimeout(() => speak(text, true), 220);
+      return;
+    }
+
+    if (state.settings.speechMode === 'taiwanese' && !voice) {
+      window.speechSynthesis.cancel();
+      showSpeechNotice('此裝置目前沒有可用的台語語音；可改用國語，或在系統語音設定中安裝台語語音。');
+      return;
+    }
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-TW';
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => /zh[-_]TW/i.test(v.lang)) || voices.find(v => /^zh/i.test(v.lang));
+    utterance.lang = profile.lang;
     if (voice) utterance.voice = voice;
     window.speechSynthesis.speak(utterance);
+  }
+
+  function setSpeechMode(mode) {
+    state.settings.speechMode = TMapSpeech.normalizeMode(mode);
+    saveState();
+    updateSettingChips();
+  }
+
+  function cycleSpeechMode() {
+    setSpeechMode(TMapSpeech.nextMode(state.settings.speechMode));
   }
 
   function shuffle(array) {
@@ -216,7 +648,12 @@
         }
         selectPiece(feature, level, button);
       });
-      button.addEventListener('pointerdown', (event) => beginDrag(event, feature, level, button));
+      button.addEventListener('pointerdown', (event) => {
+        // On touch devices, the silhouette itself is the drag handle. Starting on the
+        // label/card background remains available for list/page scrolling.
+        if (event.pointerType === 'touch' && !event.target.closest('svg')) return;
+        beginDrag(event, feature, level, button);
+      });
       container.append(button);
     });
   }
@@ -225,15 +662,22 @@
     const name = level === 'county' ? countyName(feature) : townName(feature);
     state.selected = { feature, level, name };
     $$('.piece-card').forEach(el => el.classList.toggle('is-selected', el.dataset.pieceName === name));
-    if (level === 'county') $('#selected-name').textContent = state.settings.labels ? name : '已選取一塊拼圖';
-    else $('#town-selected-name').textContent = state.settings.labels ? name : '已選取一塊拼圖';
+    setSelectedDisplay(level, name);
     speak(name);
     if (sourceButton) sourceButton.focus({ preventScroll: true });
+    if (isMobileLayout() && sourceButton) {
+      const panel = sourceButton.closest('.piece-panel');
+      if (panel?.dataset.drawerState !== 'collapsed') {
+        setDrawerState(panel, 'collapsed');
+        requestAnimationFrame(() => activeMapStage(level)?.scrollIntoView({ block:'center', behavior:'smooth' }));
+      }
+    }
   }
 
   // The visible hover and the answer hint are deliberately independent.
   function clearNearTargets() {
     $$('.target-region.is-near, .target-region.is-hovered').forEach(el => {
+      if (el.closest('.map-magnifier')) return;
       el.classList.remove('is-near', 'is-hovered');
     });
   }
@@ -255,8 +699,9 @@
       (level === 'town' ? $('#town-map').contains(el) : $('#taiwan-map-stage').contains(el))) || null;
   }
 
-  function measureDrop(x, y, level, name, radius = 18) {
-    const hovered = hitRegionAt(x, y, level);
+  function measureDrop(x, y, level, name, radius = 18, hitRadius = 0) {
+    let hovered = hitRegionAt(x, y, level);
+    if (!hovered && hitRadius > 0) hovered = nearestTargetAt(x, y, level, hitRadius);
     const correct = correctTargetPath(name, level);
     const nearCorrect = correct && !correct.classList.contains('is-placed') &&
       TMapHints.geometryProximity(correct, x, y, radius);
@@ -269,17 +714,18 @@
       }), hovered, correct, nearCorrect: !!nearCorrect };
   }
 
-  function highlightTargetAt(x, y, name, level, radius) {
+  function highlightTargetAt(x, y, name, level, radius, hitRadius = 0) {
     clearNearTargets();
     const stage = activeMapStage(level);
     const overMap = TMapHints.withinRect(x, y, stage?.getBoundingClientRect());
     if (state.drag?.ghost) state.drag.ghost.classList.toggle('is-over-map', overMap);
     if (!overMap) return null;
-    const result = measureDrop(x, y, level, name, radius);
+    const result = measureDrop(x, y, level, name, radius, hitRadius);
     if (result.hovered && !result.hovered.classList.contains('is-placed')) {
       result.hovered.classList.add('is-hovered');
     }
-    if (result.showCorrectHint && result.correct) result.correct.classList.add('is-near');
+    const hintSurface = TMapHints.correctHintSurface(result.showCorrectHint, !!state.drag?.usingMagnifier);
+    if (hintSurface === 'map' && result.correct) result.correct.classList.add('is-near');
     return result;
   }
 
@@ -292,6 +738,11 @@
     const drag = state.drag;
     if (!drag) return;
     if (drag.frame) cancelAnimationFrame(drag.frame);
+    if (!cancelled && drag.active && state.settings.magnifier) updateMagnifier(drag);
+    const dropPoint = dragInteractionPoint(drag);
+    const magnifierDrop = !!drag.usingMagnifier;
+    const magnifierCanPlace = !!drag.magnifierTouchesCorrect;
+
     document.removeEventListener('pointermove', drag.move);
     document.removeEventListener('pointerup', drag.up);
     document.removeEventListener('pointercancel', drag.cancel);
@@ -301,6 +752,7 @@
     }
     drag.ghost.remove();
     drag.source.classList.remove('is-dragging');
+    hideMagnifier();
     clearNearTargets();
     state.drag = null;
     if (drag.active) {
@@ -310,8 +762,24 @@
     }
     if (!cancelled && drag.active) {
       const stage = activeMapStage(drag.level);
-      if (!TMapHints.withinRect(drag.x, drag.y, stage?.getBoundingClientRect())) return;
-      const result = measureDrop(drag.x, drag.y, drag.level, drag.name, drag.radius);
+      if (!TMapHints.withinRect(dropPoint.x, dropPoint.y, stage?.getBoundingClientRect())) return;
+
+      if (magnifierDrop) {
+        // With the magnifier on, both the yellow hint and final snap use exactly
+        // the same crosshair-circle contact test. No wider 24/30px fallback is
+        // allowed here; if the circle does not touch the selected correct region,
+        // releasing the piece must not snap it into place.
+        if (magnifierCanPlace) {
+          state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
+          placeSelected(drag.level);
+        } else {
+          const feedback = drag.level === 'county' ? $('#taiwan-feedback') : $('#town-feedback');
+          setFeedback(feedback, '準星小圓圈尚未碰到正確區域，再對準一點。', 'try');
+        }
+        return;
+      }
+
+      const result = measureDrop(dropPoint.x, dropPoint.y, drag.level, drag.name, drag.radius, drag.hitRadius);
       if (result.canPlace) {
         state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
         placeSelected(drag.level);
@@ -324,6 +792,7 @@
   function beginDrag(event, feature, level, sourceButton) {
     if (event.button !== undefined && event.button !== 0) return;
     if (state.drag) return;
+    if (event.pointerType === 'touch') event.preventDefault();
     selectPiece(feature, level);
     const name = level === 'county' ? countyName(feature) : townName(feature);
     const ghost = document.createElement('div');
@@ -336,7 +805,12 @@
       ghost, level, name, feature, source: sourceButton,
       pointerId: event.pointerId, x: event.clientX, y: event.clientY,
       startX: event.clientX, startY: event.clientY, active: false,
-      radius: event.pointerType === 'touch' ? 24 : 18, frame: 0
+      pointerType: event.pointerType || 'mouse',
+      magnifierTouchesCorrect: false,
+      magnifierContactRadius: magnifierContactRadius(),
+      radius: event.pointerType === 'touch' && isMobileLayout() ? (level === 'town' ? 30 : 24) : (event.pointerType === 'touch' ? 24 : 18),
+      hitRadius: event.pointerType === 'touch' && isMobileLayout() ? (level === 'town' ? 30 : 24) : 0,
+      frame: 0
     };
     state.drag = drag;
     drag.move = e => {
@@ -352,7 +826,11 @@
         drag.frame = 0;
         if (state.drag !== drag) return;
         moveGhost(ghost, drag.x, drag.y);
-        highlightTargetAt(drag.x, drag.y, name, level, drag.radius);
+        updateMagnifier(drag);
+        const point = dragInteractionPoint(drag);
+        const hoverRadius = drag.usingMagnifier ? drag.magnifierContactRadius : drag.radius;
+        const hoverHitRadius = drag.usingMagnifier ? drag.magnifierContactRadius : drag.hitRadius;
+        highlightTargetAt(point.x, point.y, name, level, hoverRadius, hoverHitRadius);
       });
     };
     drag.up = e => {
@@ -370,11 +848,20 @@
     document.addEventListener('pointercancel', drag.cancel);
     window.addEventListener('blur', drag.cancel);
     ghost.style.visibility = 'hidden';
-    // A simple click still selects the piece; only an actual drag shows its badge.
-    if (event.pointerType === 'touch') event.preventDefault();
+    // A simple tap still selects the piece. Mobile CSS reserves horizontal/vertical
+    // scrolling gestures for the drawer while vertical drag from the collapsed strip remains available.
   }
 
   function targetClick(event) {
+    const svg = event.currentTarget?.ownerSVGElement;
+    if (svg?.dataset.suppressMapClick) {
+      event.preventDefault?.();
+      event.stopPropagation?.();
+      delete svg.dataset.suppressMapClick;
+      return;
+    }
+    event.stopPropagation?.();
+    if ((event.detail ?? 0) > 0) event.currentTarget.blur?.();
     const targetName = event.currentTarget.dataset.regionName;
     const level = event.currentTarget.dataset.level;
     if (!state.selected || state.selected.level !== level) {
@@ -422,12 +909,22 @@
     }
   }
 
+
+  function syncIslandNames() {
+    $$('.island-name[data-region-name]').forEach(label => {
+      const placed = state.progress.taiwan.includes(label.dataset.regionName);
+      label.hidden = !(state.settings.labels && placed);
+    });
+  }
+
   function markTargetPlaced(name, level) {
     $$(`.target-region[data-level="${level}"]`).filter(el => el.dataset.regionName === name).forEach(el => el.classList.add('is-placed'));
     $$(`.map-label[data-level="${level}"]`).filter(el => el.dataset.regionName === name).forEach(el => el.style.display = state.settings.labels ? '' : 'none');
+    if (level === 'county') syncIslandNames();
   }
 
   function renderTargetSvg(svgEl, features, width, height, level, placedNames, showLabels = true) {
+    resetMapView(svgEl);
     const svg = d3.select(svgEl);
     svg.selectAll('*').remove();
     const projection = createProjection(features, width, height, 18);
@@ -467,6 +964,7 @@
         .style('display', state.settings.labels ? '' : 'none')
         .text(f => level === 'county' ? countyName(f) : townName(f));
     }
+    bindMobileMap(svgEl, level);
   }
 
   function renderTaiwanMap() {
@@ -481,6 +979,7 @@
       const feature = state.data.counties.find(f => countyName(f) === name);
       if (feature) renderTargetSvg($(selector), [feature], 180, 130, 'county', state.progress.taiwan, false);
     });
+    syncIslandNames();
   }
 
   function renderTaiwanPieces() {
@@ -491,7 +990,7 @@
     const n = state.progress.taiwan.length;
     $('#taiwan-progress').textContent = `完成 ${n} / 22`;
     $('#taiwan-remaining').textContent = `${22 - n} 塊`;
-    $('#selected-name').textContent = '尚未選取';
+    setSelectedDisplay('county');
   }
 
   function openTaiwanPuzzle() {
@@ -608,7 +1107,7 @@
     const done = state.progress.towns[state.currentCounty]?.length || 0;
     $('#town-progress').textContent = `完成 ${done} / ${towns.length}`;
     $('#town-remaining').textContent = `${towns.length - done} 塊`;
-    $('#town-selected-name').textContent = '尚未選取';
+    setSelectedDisplay('town');
   }
 
   function showTownComplete() {
@@ -636,7 +1135,8 @@
     const specs = [
       ['taiwan-speech','town-speech','speech','🔊 朗讀'],
       ['taiwan-labels','town-labels','labels','🏷 名稱'],
-      ['taiwan-snap','town-snap','snapHint','🧲 吸附提示']
+      ['taiwan-snap','town-snap','snapHint','🧲 正確提示'],
+      ['taiwan-magnifier','town-magnifier','magnifier','🔍 放大鏡']
     ];
     specs.forEach(([a,b,key,label]) => {
       [a,b].forEach(id => {
@@ -647,15 +1147,23 @@
       });
     });
     $('#setting-speech').checked = state.settings.speech;
+    $('#setting-speech-mode').value = state.settings.speechMode;
+    ['taiwan-speech-mode','town-speech-mode'].forEach(id => {
+      const el = $('#' + id);
+      if (el) el.textContent = `🗣 ${TMapSpeech.getProfile(state.settings.speechMode).label}`;
+    });
     $('#setting-labels').checked = state.settings.labels;
     $('#setting-snap').checked = state.settings.snapHint;
+    $('#setting-magnifier').checked = state.settings.magnifier;
     $('#setting-effects').checked = state.settings.effects;
     $('#setting-theme').value = state.settings.theme;
     $$('.piece-card').forEach(el => el.classList.toggle('hide-label', !state.settings.labels));
     $$('.map-label').forEach(el => el.style.display = state.settings.labels ? '' : 'none');
-    if (!state.settings.labels) {
-      if ($('#selected-name')) $('#selected-name').textContent = state.selected ? '已選取一塊拼圖' : '尚未選取';
-      if ($('#town-selected-name')) $('#town-selected-name').textContent = state.selected ? '已選取一塊拼圖' : '尚未選取';
+    syncIslandNames();
+    if (state.selected) setSelectedDisplay(state.selected.level, state.selected.name);
+    else {
+      setSelectedDisplay('county');
+      setSelectedDisplay('town');
     }
   }
 
@@ -664,8 +1172,19 @@
     if (key === 'effects' && state.settings.effects) ensureAudioContext();
     if (key === 'snapHint' && !state.drag) clearNearTargets();
     if (key === 'snapHint' && state.drag) {
-      highlightTargetAt(state.drag.x, state.drag.y, state.drag.name,
-        state.drag.level, state.drag.radius);
+      if (state.drag.usingMagnifier) updateMagnifier(state.drag);
+      const point = dragInteractionPoint(state.drag);
+      highlightTargetAt(point.x, point.y, state.drag.name,
+        state.drag.level, state.drag.radius, state.drag.hitRadius);
+    }
+    if (key === 'magnifier') {
+      if (!state.settings.magnifier) hideMagnifier();
+      if (state.drag) {
+        updateMagnifier(state.drag);
+        const point = dragInteractionPoint(state.drag);
+        highlightTargetAt(point.x, point.y, state.drag.name,
+          state.drag.level, state.drag.radius, state.drag.hitRadius);
+      }
     }
     saveState();
     updateSettingChips();
@@ -689,6 +1208,11 @@
   }
 
   function bindControls() {
+    bindDrawerGestures();
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Tab' || event.key.startsWith('Arrow')) document.body.classList.add('keyboard-nav');
+    }, true);
+    document.addEventListener('pointerdown', () => document.body.classList.remove('keyboard-nav'), true);
     document.addEventListener('pointerdown', () => ensureAudioContext(), { once: true, passive: true });
     document.addEventListener('click', event => {
       const action = event.target.closest('[data-action]')?.dataset.action;
@@ -700,29 +1224,51 @@
       if (action === 'reset-taiwan') resetTaiwan();
       if (action === 'open-help') $('#help-dialog').showModal();
       if (action === 'toggle-theme') toggleTheme();
+      if (action === 'toggle-piece-drawer') toggleMobileDrawer(event.target.closest('[data-drawer]')?.dataset.drawer || event.target.dataset.drawer);
+      if (action === 'map-zoom-in' || action === 'map-zoom-out' || action === 'map-zoom-reset') {
+        const svg = document.getElementById(event.target.closest('[data-map]')?.dataset.map || '');
+        if (svg) {
+          if (action === 'map-zoom-in') zoomMap(svg, 1.35);
+          if (action === 'map-zoom-out') zoomMap(svg, 1 / 1.35);
+          if (action === 'map-zoom-reset') resetMapView(svg);
+        }
+      }
     });
 
     $('#setting-speech').addEventListener('change', () => toggleSetting('speech'));
+    $('#setting-speech-mode').addEventListener('change', event => setSpeechMode(event.target.value));
     $('#setting-labels').addEventListener('change', () => toggleSetting('labels'));
     $('#setting-snap').addEventListener('change', () => toggleSetting('snapHint'));
+    $('#setting-magnifier').addEventListener('change', () => toggleSetting('magnifier'));
     $('#setting-effects').addEventListener('change', () => toggleSetting('effects'));
     $('#setting-theme').addEventListener('change', event => setTheme(event.target.value));
     $('#taiwan-speech').addEventListener('click', () => toggleSetting('speech'));
+    $('#taiwan-speech-mode').addEventListener('click', cycleSpeechMode);
     $('#taiwan-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#taiwan-snap').addEventListener('click', () => toggleSetting('snapHint'));
+    $('#taiwan-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
     $('#town-speech').addEventListener('click', () => toggleSetting('speech'));
+    $('#town-speech-mode').addEventListener('click', cycleSpeechMode);
     $('#town-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#town-snap').addEventListener('click', () => toggleSetting('snapHint'));
+    $('#town-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
     $('#reset-town').addEventListener('click', resetTown);
     $('#county-search').addEventListener('input', renderCountyList);
     $('#region-filter').addEventListener('change', renderCountyList);
     $('#town-complete-explorer').addEventListener('click', event => { event.preventDefault(); $('#town-complete-dialog').close(); openExplorer(); });
     $('#town-complete-replay').addEventListener('click', event => { event.preventDefault(); $('#town-complete-dialog').close(); resetTown(); });
+    window.addEventListener('resize', () => {
+      syncMobilePuzzleClass();
+      if (!isMobileLayout()) {
+        collapseAllDrawers();
+        hideMagnifier();
+      }
+    }, { passive:true });
   }
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.03</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.03 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.6</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.6 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

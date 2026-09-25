@@ -191,7 +191,7 @@ html[data-theme="dark"] {
   --ghost-text: #ffffff;
   --ghost-border: #d1e2ed;
 }
-.piece-card { touch-action: none; user-select: none; -webkit-user-select: none; }
+.piece-card { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .piece-card.is-dragging { cursor: grabbing; }
 .piece-card.is-dragging svg { opacity: .45; }
 .target-region:not(.is-placed):hover,
@@ -238,4 +238,311 @@ html[data-theme="dark"] {
 }
 @media (prefers-reduced-motion: reduce) {
   .target-region { transition: none; }
+}
+
+
+.island-name[hidden] { display: none !important; }
+.magnifier-chip { display: none; }
+.target-region { -webkit-tap-highlight-color: transparent; }
+
+@media (min-width: 641px) and (max-width: 900px) and (pointer: coarse) {
+  /* Tablet touch: scrolling the page must win over starting a drag from a card. */
+  .piece-card { touch-action: pan-y; }
+  .piece-list { overscroll-behavior-y: auto; }
+}
+
+
+@media (pointer: coarse) {
+  .target-region:focus,
+  .target-region:focus-visible {
+    outline: none !important;
+  }
+}
+
+/* v1.04.1: mobile-responsive puzzle mode and touch arbitration. */
+.mobile-drawer-bar,
+.mobile-map-tools { display: none; }
+
+.map-magnifier {
+  position: fixed;
+  z-index: 120;
+  width: 112px;
+  height: 112px;
+  border-radius: 50%;
+  overflow: hidden;
+  pointer-events: none;
+  border: 3px solid var(--accent);
+  background: var(--map-bg);
+  box-shadow: 0 8px 26px rgb(0 0 0 / .28);
+  opacity: 0;
+  transform: scale(.92);
+  transition: opacity .1s ease, transform .1s ease;
+}
+.map-magnifier.is-visible { opacity: 1; transform: scale(1); }
+.map-magnifier-surface { position: absolute; inset: 0; overflow: hidden; }
+.map-magnifier-surface svg { position: absolute; max-width: none; max-height: none; pointer-events: none; }
+.map-magnifier::after {
+  content: '';
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 12px; height: 12px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px var(--card);
+}
+.map-magnifier-label {
+  position: absolute;
+  left: 50%; bottom: 5px;
+  transform: translateX(-50%);
+  max-width: 96px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 82%, transparent);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 640px) {
+  .app-shell { padding: 10px; }
+  body.mobile-puzzle-active .app-shell { padding-bottom: calc(168px + env(safe-area-inset-bottom)); }
+  .topbar { gap: 10px; margin-bottom: 12px; }
+  .topbar.compact h1 { font-size: clamp(1.45rem, 7vw, 2rem); }
+  .topbar .toolbar { gap: 6px; }
+  .topbar .toolbar .button { min-height: 40px; padding: 8px 10px; }
+  .statusbar { gap: 6px; padding: 8px 0 10px; }
+  .statusbar .chip { min-height: 38px; padding: 7px 9px; font-size: .88rem; }
+  .statusbar strong { width: 100%; margin-left: 0; font-size: .92rem; }
+
+  .puzzle-layout { display: block; }
+  .map-panel { padding: 10px; margin-bottom: 8px; }
+  .map-panel > .panel-heading { align-items: center; }
+  .map-panel > .panel-heading h2 { font-size: 1.1rem; margin-bottom: 6px; }
+  .selected-name { max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .piece-panel {
+    position: fixed;
+    z-index: 90;
+    left: 0; right: 0; bottom: 0;
+    width: 100%;
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 28px rgb(0 0 0 / .2);
+    overflow: hidden;
+    transition: max-height .2s ease;
+  }
+  .piece-panel[data-drawer-state="collapsed"] {
+    max-height: calc(166px + env(safe-area-inset-bottom));
+  }
+  .piece-panel[data-drawer-state="half"] {
+    max-height: min(48dvh, 430px);
+  }
+  .piece-panel[data-drawer-state="full"] {
+    max-height: min(82dvh, 720px);
+  }
+  .mobile-drawer-bar {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+    padding-top: 11px;
+    min-height: 50px;
+    touch-action: none;
+    user-select: none;
+  }
+  .mobile-drawer-grip {
+    position: absolute;
+    top: 1px;
+    left: 50%;
+    width: 42px;
+    height: 5px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, var(--muted) 42%, transparent);
+  }
+  .mobile-selection { min-width: 0; display: grid; gap: 1px; }
+  .mobile-selection span { color: var(--muted); font-size: .76rem; }
+  .mobile-selection strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mobile-drawer-toggle { min-height: 40px; padding: 7px 11px; flex: 0 0 auto; }
+  .piece-panel[data-drawer-state="collapsed"] > .panel-heading,
+  .piece-panel[data-drawer-state="collapsed"] > .hint { display: none; }
+  .piece-panel:not([data-drawer-state="collapsed"]) > .panel-heading { margin-top: 4px; }
+  .piece-panel:not([data-drawer-state="collapsed"]) > .hint { margin-bottom: 8px; }
+  .piece-panel .piece-list {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+    padding: 2px 2px 4px;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    touch-action: pan-x pan-y;
+  }
+  .piece-panel[data-drawer-state="half"] .piece-list,
+  .piece-panel[data-drawer-state="full"] .piece-list {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 12px;
+    touch-action: pan-y;
+  }
+  .piece-panel[data-drawer-state="half"] .piece-list { max-height: min(30dvh, 280px); }
+  .piece-panel[data-drawer-state="full"] .piece-list { max-height: min(64dvh, 580px); }
+  .piece-card {
+    min-width: 104px;
+    min-height: 88px;
+    grid-template-rows: 56px auto;
+    padding: 6px;
+    scroll-snap-align: start;
+  }
+  .piece-panel[data-drawer-state="collapsed"] .piece-card { touch-action: pan-x pan-y; }
+  .piece-panel:not([data-drawer-state="collapsed"]) .piece-card { min-width: 0; touch-action: pan-y; }
+  .piece-card svg { height: 54px; }
+  .piece-card .piece-name { font-size: .86rem; }
+
+  .mobile-map-tools {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 4px 0 8px;
+    color: var(--muted);
+    font-size: .78rem;
+  }
+  .mobile-map-tools > span { max-width: 55%; line-height: 1.35; }
+  .mobile-map-buttons { display: flex; gap: 5px; }
+  .mobile-map-buttons .button { min-width: 40px; min-height: 40px; padding: 6px 9px; }
+
+  .main-map-box,
+  .town-map-wrap {
+    overflow: hidden;
+    touch-action: pan-y;
+    overscroll-behavior-y: auto;
+  }
+  .main-map-box { min-height: min(62dvh, 540px); }
+  .town-map-wrap { min-height: min(68dvh, 590px); }
+  .main-map-box .mobile-zoomable,
+  .town-map-wrap .mobile-zoomable {
+    width: 100%;
+    height: min(68dvh, 590px);
+    max-height: none;
+    touch-action: pan-y;
+  }
+  .main-map-box .mobile-zoomable.is-map-zoomed,
+  .town-map-wrap .mobile-zoomable.is-map-zoomed {
+    touch-action: none;
+  }
+  .main-map-box .mobile-zoomable { height: min(62dvh, 540px); }
+
+  .taiwan-stage { display: block; }
+  .island-grid {
+    display: flex;
+    overflow-x: auto;
+    gap: 8px;
+    padding: 8px 0 3px;
+    scroll-snap-type: x proximity;
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
+  }
+  .island-box { min-width: 164px; scroll-snap-align: start; }
+  .inset-svg { height: 105px; }
+  .scale-note { margin-top: 5px; font-size: .78rem; }
+  .feedback { min-height: 44px; margin-top: 8px; padding: 10px 11px; font-size: .9rem; }
+
+  .explorer-controls { display: grid; grid-template-columns: 1fr; }
+  .explorer-controls input, .explorer-controls select { width: 100%; min-width: 0; }
+  .county-list { grid-template-columns: 1fr 1fr; }
+  .county-card { min-height: 84px; padding: 11px; }
+
+  /* Mobile touch feedback uses explicit classes rather than relying on sticky :hover. */
+  .target-region:hover:not(.is-hovered):not(.is-near):not(.is-placed) {
+    fill: var(--target);
+    stroke: var(--target-stroke);
+    stroke-width: 1.3;
+  }
+  .target-region.is-hovered:not(.is-placed) {
+    fill: var(--hover-fill);
+    stroke: var(--hover-stroke);
+    stroke-width: 2.8;
+  }
+  .magnifier-chip { display: inline-flex; }
+  .target-region:focus,
+  .target-region:focus-visible {
+    outline: none !important;
+  }
+}
+
+@media (max-width: 390px) {
+  .piece-panel:not([data-drawer-state="collapsed"]) .piece-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mobile-map-tools { align-items: flex-start; }
+  .mobile-map-tools > span { max-width: 48%; }
+  .county-list { grid-template-columns: 1fr; }
+}
+
+/* v1.04.2: touch drag arbitration, path-only keyboard focus, speech language UI. */
+.setting-note {
+  margin: 8px 0 2px;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.55;
+}
+.speech-mode-chip { font-weight: 750; }
+.speech-notice {
+  position: fixed;
+  z-index: 140;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  width: min(92vw, 560px);
+  transform: translate(-50%, -12px);
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 8px 28px rgb(0 0 0 / .22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.speech-notice.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* SVG paths should never receive a rectangular browser focus box. Keyboard
+   navigation remains visible by emphasizing the actual administrative border. */
+.target-region:focus,
+.target-region:focus-visible {
+  outline: none !important;
+}
+.keyboard-nav .target-region:focus:not(.is-placed) {
+  stroke: var(--accent);
+  stroke-width: 3.2;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 60%, transparent));
+}
+
+/* On coarse pointers the silhouette is the drag handle. This prevents the page
+   from moving while the user is actually carrying a piece, while the label/card
+   background remains available for list/page scrolling. */
+@media (pointer: coarse) {
+  .piece-card { touch-action: pan-y; }
+  .piece-card svg {
+    touch-action: none !important;
+    cursor: grab;
+  }
+  .piece-card.is-dragging svg { cursor: grabbing; }
+  .target-region { -webkit-tap-highlight-color: transparent; }
+}
+
+@media (max-width: 640px) and (pointer: coarse) {
+  .piece-panel[data-drawer-state="collapsed"] .piece-card { touch-action: pan-x pan-y; }
+  .piece-panel:not([data-drawer-state="collapsed"]) .piece-card { touch-action: pan-y; }
+  .piece-card svg { touch-action: none !important; }
 }

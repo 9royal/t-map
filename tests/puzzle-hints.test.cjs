@@ -48,8 +48,71 @@ test('proximity accepts a true fill and nearby boundary, rejects distant points'
     getTotalLength:()=>40,
     getPointAtLength:d=>{d%=40;if(d<10)return{x:d,y:0};if(d<20)return{x:10,y:d-10};if(d<30)return{x:30-d,y:10};return{x:0,y:40-d};}};
   try {
+    assert.equal(h.geometryDistance(path,5,5,2),0);
+    assert.ok(h.geometryDistance(path,12,5,3) <= 3);
+    assert.equal(h.geometryDistance(path,50,50,3),Infinity);
     assert.equal(h.geometryProximity(path,5,5,2),true);
     assert.equal(h.geometryProximity(path,12,5,3),true);
     assert.equal(h.geometryProximity(path,50,50,3),false);
   } finally {global.DOMPoint=old;}
+});
+
+
+test('correct hint renders on exactly one surface', () => {
+  assert.equal(h.correctHintSurface(false, false), 'none');
+  assert.equal(h.correctHintSurface(false, true), 'none');
+  assert.equal(h.correctHintSurface(true, false), 'map');
+  assert.equal(h.correctHintSurface(true, true), 'magnifier');
+});
+
+
+test('magnifier contact uses the visible crosshair circle, not the label position', () => {
+  const touch = h.magnifierContact({touchesCorrect:true, selectedName:'新店區', snapHint:true});
+  assert.equal(touch.canPlace, true);
+  assert.equal(touch.showCorrectHint, true);
+  assert.equal(touch.hintName, '新店區');
+
+  const miss = h.magnifierContact({touchesCorrect:false, selectedName:'新店區', snapHint:true});
+  assert.equal(miss.canPlace, false);
+  assert.equal(miss.showCorrectHint, false);
+  assert.equal(miss.hintName, null);
+});
+
+test('magnifier hint and final placement remain aligned even when hint is OFF', () => {
+  const r = h.magnifierContact({touchesCorrect:true, selectedName:'新店區', snapHint:false});
+  assert.equal(r.canPlace, true);
+  assert.equal(r.showCorrectHint, false);
+  assert.equal(r.hintName, null);
+  assert.equal(h.magnifierContact({touchesCorrect:true, selectedName:'新店區', snapHint:true, placed:true}).canPlace, false);
+});
+
+test('crosshair visual radius is converted through magnifier scale', () => {
+  const radius = h.magnifierSourceRadius(8, 2.35);
+  assert.ok(Math.abs(radius - (8 / 2.35)) < 1e-12);
+  assert.ok(radius > 3.4 && radius < 3.5);
+  assert.equal(h.magnifierSourceRadius(8, 0), 0);
+});
+
+test('magnifier hint name follows physical contact only', () => {
+  assert.equal(h.magnifierHintName({touchesCorrect:true, selectedName:'新店區', snapHint:true}), '新店區');
+  assert.equal(h.magnifierHintName({touchesCorrect:false, selectedName:'新店區', snapHint:true}), null);
+});
+
+
+test('crosshair circle stays in contact while its centre is inside the correct region', () => {
+  assert.equal(h.crosshairCircleContact({centerInside:true, boundaryDistance:50, radius:3.4}), true);
+  assert.equal(h.crosshairCircleContact({centerInside:true, boundaryDistance:Infinity, radius:3.4}), true);
+});
+
+test('crosshair circle edge contact is precise and does not use the old wide mobile radius', () => {
+  assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:3.39, radius:3.4}), true);
+  assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:3.41, radius:3.4}), false);
+  assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:24, radius:3.4}), false);
+});
+
+test('crosshair contact helper is geometry-agnostic so inset islands use the same rule', () => {
+  for (const name of ['澎湖縣','金門縣','連江縣']) {
+    const contact = h.crosshairCircleContact({centerInside:true, boundaryDistance:Infinity, radius:3.4});
+    assert.equal(contact, true, `${name} centre-inside contact should count`);
+  }
 });

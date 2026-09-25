@@ -4,15 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
-  <title>T map v1.03｜臺灣行政區互動拼圖</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title>T map v1.04.6｜臺灣行政區互動拼圖</title>
+  <link rel="stylesheet" href="css/style.css?v=1.04.6" />
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
     <section id="screen-home" class="screen is-active" aria-labelledby="home-title">
       <header class="topbar">
         <div>
-          <p class="eyebrow">T map v1.03</p>
+          <p class="eyebrow">T map v1.04.6</p>
           <h1 id="home-title">臺灣行政區互動拼圖</h1>
           <p class="subtitle">先拼出臺灣，再探索 22 縣市裡的鄉鎮市區。</p>
         </div>
@@ -34,8 +34,11 @@
         <aside class="settings-card" aria-labelledby="settings-title">
           <h2 id="settings-title">學習設定</h2>
           <label class="switch-row"><span>🔊 點選時朗讀名稱</span><input id="setting-speech" type="checkbox" checked /></label>
+          <label class="setting-row"><span>🗣 朗讀語言</span><select id="setting-speech-mode" aria-label="朗讀語言"><option value="mandarin">國語</option><option value="taiwanese">台語（裝置支援時）</option></select></label>
+          <p class="setting-note">台語使用裝置提供的台語／Hokkien 語音；若裝置沒有安裝，系統不會用國語假裝台語。</p>
           <label class="switch-row"><span>🏷 顯示行政區名稱</span><input id="setting-labels" type="checkbox" checked /></label>
           <label class="switch-row"><span>🧲 正確位置提示</span><input id="setting-snap" type="checkbox" checked /></label>
+          <label class="switch-row"><span>🔍 手機拖曳放大鏡</span><input id="setting-magnifier" type="checkbox" checked /></label>
           <label class="switch-row"><span>🎉 完成慶祝音效</span><input id="setting-effects" type="checkbox" checked /></label>
           <label class="setting-row"><span>🎨 畫面主題</span><select id="setting-theme" aria-label="畫面主題"><option value="light">淺色</option><option value="dark">深色</option></select></label>
           <div class="progress-summary">
@@ -45,13 +48,13 @@
         </aside>
       </div>
 
-      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.03</footer>
+      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.04.6</footer>
     </section>
 
     <section id="screen-taiwan" class="screen" aria-labelledby="taiwan-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.03 / 第一層</p>
+          <p class="eyebrow">T map v1.04.6 / 第一層</p>
           <h1 id="taiwan-title">臺灣 22 縣市拼圖</h1>
         </div>
         <div class="toolbar">
@@ -64,18 +67,25 @@
 
       <div class="statusbar">
         <button id="taiwan-speech" class="chip" type="button"></button>
+        <button id="taiwan-speech-mode" class="chip speech-mode-chip" type="button" aria-label="切換朗讀語言"></button>
         <button id="taiwan-labels" class="chip" type="button"></button>
         <button id="taiwan-snap" class="chip" type="button"></button>
+        <button id="taiwan-magnifier" class="chip magnifier-chip" type="button"></button>
         <strong id="taiwan-progress">完成 0 / 22</strong>
       </div>
 
       <div class="puzzle-layout">
-        <aside class="piece-panel">
+        <aside class="piece-panel" data-drawer="county" data-drawer-state="collapsed">
+          <div class="mobile-drawer-bar">
+            <span class="mobile-drawer-grip" aria-hidden="true"></span>
+            <div class="mobile-selection"><span>目前拼圖</span><strong id="taiwan-mobile-selected">尚未選取</strong></div>
+            <button class="button mobile-drawer-toggle" type="button" data-action="toggle-piece-drawer" data-drawer="county" aria-expanded="false">展開拼圖</button>
+          </div>
           <div class="panel-heading">
             <h2>拼圖片區</h2>
             <span id="taiwan-remaining">22 塊</span>
           </div>
-          <p class="hint">可拖曳；也可先點拼圖，再點地圖位置。</p>
+          <p class="hint">可拖曳；手機／平板請從拼圖圖形開始拖，從名稱或卡片空白處滑動可瀏覽清單。也可先點拼圖，再點地圖位置。</p>
           <div id="taiwan-piece-list" class="piece-list"></div>
         </aside>
 
@@ -84,14 +94,22 @@
             <h2>臺灣輪廓</h2>
             <span id="selected-name" class="selected-name">尚未選取</span>
           </div>
+          <div class="mobile-map-tools" aria-label="手機地圖控制">
+            <span>未放大時單指上下可捲頁；雙指縮放，放大後單指移圖</span>
+            <div class="mobile-map-buttons">
+              <button class="button" type="button" data-action="map-zoom-out" data-map="taiwan-main-map" aria-label="縮小臺灣地圖">−</button>
+              <button class="button" type="button" data-action="map-zoom-reset" data-map="taiwan-main-map">重設</button>
+              <button class="button" type="button" data-action="map-zoom-in" data-map="taiwan-main-map" aria-label="放大臺灣地圖">＋</button>
+            </div>
+          </div>
           <div id="taiwan-map-stage" class="taiwan-stage">
             <div class="main-map-box">
-              <svg id="taiwan-main-map" class="map-svg" viewBox="0 0 560 720" role="img" aria-label="臺灣本島縣市拼圖目標區"></svg>
+              <svg id="taiwan-main-map" class="map-svg mobile-zoomable" viewBox="0 0 560 720" role="img" aria-label="臺灣本島縣市拼圖目標區"></svg>
             </div>
             <div class="island-grid">
-              <div class="island-box"><span>澎湖縣</span><svg id="inset-penghu" class="inset-svg" viewBox="0 0 180 130"></svg></div>
-              <div class="island-box"><span>金門縣</span><svg id="inset-kinmen" class="inset-svg" viewBox="0 0 180 130"></svg></div>
-              <div class="island-box"><span>連江縣</span><svg id="inset-lienchiang" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span class="island-name" data-region-name="澎湖縣" hidden>澎湖縣</span><svg id="inset-penghu" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span class="island-name" data-region-name="金門縣" hidden>金門縣</span><svg id="inset-kinmen" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span class="island-name" data-region-name="連江縣" hidden>連江縣</span><svg id="inset-lienchiang" class="inset-svg" viewBox="0 0 180 130"></svg></div>
             </div>
             <p class="scale-note">※ 澎湖、金門、連江為放大顯示，不與臺灣本島同比例。</p>
           </div>
@@ -103,7 +121,7 @@
     <section id="screen-complete" class="screen" aria-labelledby="complete-title">
       <div class="completion-card">
         <div class="celebration" aria-hidden="true">🎉</div>
-        <p class="eyebrow">T map v1.03</p>
+        <p class="eyebrow">T map v1.04.6</p>
         <h1 id="complete-title">臺灣縣市拼圖完成！</h1>
         <p class="completion-lead">你已完成 22 / 22 個縣市。接下來可以把每一個縣市繼續拆開，探索其中的鄉、鎮、市、區。</p>
         <div id="complete-map" class="complete-map"></div>
@@ -119,7 +137,7 @@
     <section id="screen-explorer" class="screen" aria-labelledby="explorer-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.03 / 第二層入口</p>
+          <p class="eyebrow">T map v1.04.6 / 第二層入口</p>
           <h1 id="explorer-title">縣市探索總覽</h1>
           <p class="subtitle">選一個縣市，進入它的鄉鎮市區拼圖。</p>
         </div>
@@ -147,7 +165,7 @@
     <section id="screen-town" class="screen" aria-labelledby="town-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.03 / 鄉鎮市區</p>
+          <p class="eyebrow">T map v1.04.6 / 鄉鎮市區</p>
           <h1 id="town-title">縣市行政區拼圖</h1>
         </div>
         <div class="toolbar">
@@ -159,20 +177,35 @@
 
       <div class="statusbar">
         <button id="town-speech" class="chip" type="button"></button>
+        <button id="town-speech-mode" class="chip speech-mode-chip" type="button" aria-label="切換朗讀語言"></button>
         <button id="town-labels" class="chip" type="button"></button>
         <button id="town-snap" class="chip" type="button"></button>
+        <button id="town-magnifier" class="chip magnifier-chip" type="button"></button>
         <strong id="town-progress">完成 0 / 0</strong>
       </div>
 
       <div class="puzzle-layout">
-        <aside class="piece-panel">
+        <aside class="piece-panel" data-drawer="town" data-drawer-state="collapsed">
+          <div class="mobile-drawer-bar">
+            <span class="mobile-drawer-grip" aria-hidden="true"></span>
+            <div class="mobile-selection"><span>目前拼圖</span><strong id="town-mobile-selected">尚未選取</strong></div>
+            <button class="button mobile-drawer-toggle" type="button" data-action="toggle-piece-drawer" data-drawer="town" aria-expanded="false">展開拼圖</button>
+          </div>
           <div class="panel-heading"><h2 id="town-piece-heading">行政區拼圖片</h2><span id="town-remaining"></span></div>
-          <p class="hint">行政區較小，點選後再點地圖也是正式操作方式。</p>
+          <p class="hint">行政區較小，點選後再點地圖也是正式操作方式。手機／平板拖曳請從拼圖圖形開始。</p>
           <div id="town-piece-list" class="piece-list"></div>
         </aside>
         <section class="map-panel">
           <div class="panel-heading"><h2 id="town-map-heading">縣市輪廓</h2><span id="town-selected-name" class="selected-name">尚未選取</span></div>
-          <div class="town-map-wrap"><svg id="town-map" class="map-svg" viewBox="0 0 700 700" aria-label="鄉鎮市區拼圖目標區"></svg></div>
+          <div class="mobile-map-tools" aria-label="手機地圖控制">
+            <span>小行政區可先選拼圖再點地圖；未放大時單指可捲頁</span>
+            <div class="mobile-map-buttons">
+              <button class="button" type="button" data-action="map-zoom-out" data-map="town-map" aria-label="縮小行政區地圖">−</button>
+              <button class="button" type="button" data-action="map-zoom-reset" data-map="town-map">重設</button>
+              <button class="button" type="button" data-action="map-zoom-in" data-map="town-map" aria-label="放大行政區地圖">＋</button>
+            </div>
+          </div>
+          <div class="town-map-wrap"><svg id="town-map" class="map-svg mobile-zoomable" viewBox="0 0 700 700" aria-label="鄉鎮市區拼圖目標區"></svg></div>
           <div id="town-feedback" class="feedback" role="status">選一塊行政區開始。</div>
         </section>
       </div>
@@ -183,11 +216,14 @@
     <form method="dialog" class="dialog-card">
       <h2>操作方式</h2>
       <ol>
-        <li>點拼圖：選取並依設定朗讀名稱。</li>
-        <li>拖曳拼圖到地圖：文字標籤會跟隨指標，進入地圖後背景半透明；放對後自動吸附。</li>
+        <li>點拼圖：選取並依設定朗讀名稱。臺灣地圖可切換國語／台語；台語依裝置語音支援。</li>
+        <li>拖曳拼圖到地圖：文字標籤會跟隨指標，進入地圖後背景半透明；放對後自動吸附。手機／平板請從拼圖圖形本身開始拖曳，避免與頁面捲動衝突。</li>
         <li>一般碰觸變色在提示 ON／OFF 都會顯示，僅代表目前碰到的位置。</li>
         <li>正確位置提示 ON：靠近正確行政區時，輪廓以不同顏色明顯發光；OFF：不透露正確位置。兩種設定都保留自動吸附。</li>
-        <li>不方便拖曳時：先點拼圖，再點地圖中的位置。</li>
+        <li>不方便拖曳時：先點拼圖，再點地圖中的位置；手機版將此方式列為主要操作之一。</li>
+        <li>手機版地圖未放大時，單指上下可正常捲動頁面；可雙指縮放，放大後再以單指平移地圖。縮放不會自動移到正確答案。</li>
+        <li>手機觸控在真實行政區邊界外保留小範圍容許值，會以最近的實際輪廓作候選，不會放大或扭曲行政區。</li>
+        <li>手機拖曳放大鏡可開關；開啟時以放大鏡中央準星作為碰觸與放置判定點。</li>
         <li>放錯不扣分，拼圖會保留在拼圖片區。</li>
         <li>澎湖、金門、連江使用放大框，位置與比例不代表實際距離。</li>
         <li>完成臺灣或單一縣市時會播放慶祝音效；可在首頁關閉。</li>
@@ -211,7 +247,9 @@
 
   <script src="lib/d3.min.js"></script>
   <script src="lib/topojson-client.min.js"></script>
-  <script src="js/puzzle-hints.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/puzzle-hints.js?v=1.04.6"></script>
+  <script src="js/mobile-map.js?v=1.04.6"></script>
+  <script src="js/speech-profiles.js?v=1.04.6"></script>
+  <script src="js/app.js?v=1.04.6"></script>
 </body>
 </html>
