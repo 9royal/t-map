@@ -191,7 +191,7 @@ html[data-theme="dark"] {
   --ghost-text: #ffffff;
   --ghost-border: #d1e2ed;
 }
-.piece-card { touch-action: none; user-select: none; -webkit-user-select: none; }
+.piece-card { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 .piece-card.is-dragging { cursor: grabbing; }
 .piece-card.is-dragging svg { opacity: .45; }
 .target-region:not(.is-placed):hover,
@@ -240,7 +240,26 @@ html[data-theme="dark"] {
   .target-region { transition: none; }
 }
 
-/* v1.04: mobile-responsive puzzle mode. Desktop/tablet layout above 640px is unchanged. */
+
+.island-name[hidden] { display: none !important; }
+.magnifier-chip { display: none; }
+.target-region { -webkit-tap-highlight-color: transparent; }
+
+@media (min-width: 641px) and (max-width: 900px) and (pointer: coarse) {
+  /* Tablet touch: scrolling the page must win over starting a drag from a card. */
+  .piece-card { touch-action: pan-y; }
+  .piece-list { overscroll-behavior-y: auto; }
+}
+
+
+@media (pointer: coarse) {
+  .target-region:focus,
+  .target-region:focus-visible {
+    outline: none !important;
+  }
+}
+
+/* v1.04.1: mobile-responsive puzzle mode and touch arbitration. */
 .mobile-drawer-bar,
 .mobile-map-tools { display: none; }
 
@@ -310,34 +329,51 @@ html[data-theme="dark"] {
     z-index: 90;
     left: 0; right: 0; bottom: 0;
     width: 100%;
-    padding: 10px 10px calc(10px + env(safe-area-inset-bottom));
+    padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
     border-radius: 18px 18px 0 0;
     box-shadow: 0 -8px 28px rgb(0 0 0 / .2);
-    max-height: calc(166px + env(safe-area-inset-bottom));
     overflow: hidden;
-    transition: max-height .22s ease;
+    transition: max-height .2s ease;
   }
-  .piece-panel.mobile-expanded {
-    max-height: 72vh;
-    max-height: min(72dvh, 650px);
-    overflow-y: auto;
-    overscroll-behavior: contain;
+  .piece-panel[data-drawer-state="collapsed"] {
+    max-height: calc(166px + env(safe-area-inset-bottom));
+  }
+  .piece-panel[data-drawer-state="half"] {
+    max-height: min(48dvh, 430px);
+  }
+  .piece-panel[data-drawer-state="full"] {
+    max-height: min(82dvh, 720px);
   }
   .mobile-drawer-bar {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
     margin-bottom: 8px;
+    padding-top: 11px;
+    min-height: 50px;
+    touch-action: none;
+    user-select: none;
+  }
+  .mobile-drawer-grip {
+    position: absolute;
+    top: 1px;
+    left: 50%;
+    width: 42px;
+    height: 5px;
+    border-radius: 999px;
+    transform: translateX(-50%);
+    background: color-mix(in srgb, var(--muted) 42%, transparent);
   }
   .mobile-selection { min-width: 0; display: grid; gap: 1px; }
   .mobile-selection span { color: var(--muted); font-size: .76rem; }
   .mobile-selection strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mobile-drawer-toggle { min-height: 40px; padding: 7px 11px; flex: 0 0 auto; }
-  .piece-panel:not(.mobile-expanded) > .panel-heading,
-  .piece-panel:not(.mobile-expanded) > .hint { display: none; }
-  .piece-panel.mobile-expanded > .panel-heading { margin-top: 4px; }
-  .piece-panel.mobile-expanded > .hint { margin-bottom: 8px; }
+  .piece-panel[data-drawer-state="collapsed"] > .panel-heading,
+  .piece-panel[data-drawer-state="collapsed"] > .hint { display: none; }
+  .piece-panel:not([data-drawer-state="collapsed"]) > .panel-heading { margin-top: 4px; }
+  .piece-panel:not([data-drawer-state="collapsed"]) > .hint { margin-bottom: 8px; }
   .piece-panel .piece-list {
     display: flex;
     gap: 8px;
@@ -347,14 +383,21 @@ html[data-theme="dark"] {
     padding: 2px 2px 4px;
     scroll-snap-type: x proximity;
     scrollbar-width: thin;
+    touch-action: pan-x pan-y;
   }
-  .piece-panel.mobile-expanded .piece-list {
+  .piece-panel[data-drawer-state="half"] .piece-list,
+  .piece-panel[data-drawer-state="full"] .piece-list {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     overflow-x: hidden;
-    overflow-y: visible;
+    overflow-y: auto;
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
     padding-bottom: 12px;
+    touch-action: pan-y;
   }
+  .piece-panel[data-drawer-state="half"] .piece-list { max-height: min(30dvh, 280px); }
+  .piece-panel[data-drawer-state="full"] .piece-list { max-height: min(64dvh, 580px); }
   .piece-card {
     min-width: 104px;
     min-height: 88px;
@@ -362,8 +405,8 @@ html[data-theme="dark"] {
     padding: 6px;
     scroll-snap-align: start;
   }
-  .piece-panel:not(.mobile-expanded) .piece-card { touch-action: pan-x; }
-  .piece-panel.mobile-expanded .piece-card { min-width: 0; touch-action: pan-y; }
+  .piece-panel[data-drawer-state="collapsed"] .piece-card { touch-action: pan-x pan-y; }
+  .piece-panel:not([data-drawer-state="collapsed"]) .piece-card { min-width: 0; touch-action: pan-y; }
   .piece-card svg { height: 54px; }
   .piece-card .piece-name { font-size: .86rem; }
 
@@ -383,8 +426,8 @@ html[data-theme="dark"] {
   .main-map-box,
   .town-map-wrap {
     overflow: hidden;
-    touch-action: none;
-    overscroll-behavior: contain;
+    touch-action: pan-y;
+    overscroll-behavior-y: auto;
   }
   .main-map-box { min-height: min(62dvh, 540px); }
   .town-map-wrap { min-height: min(68dvh, 590px); }
@@ -393,6 +436,10 @@ html[data-theme="dark"] {
     width: 100%;
     height: min(68dvh, 590px);
     max-height: none;
+    touch-action: pan-y;
+  }
+  .main-map-box .mobile-zoomable.is-map-zoomed,
+  .town-map-wrap .mobile-zoomable.is-map-zoomed {
     touch-action: none;
   }
   .main-map-box .mobile-zoomable { height: min(62dvh, 540px); }
@@ -404,6 +451,8 @@ html[data-theme="dark"] {
     gap: 8px;
     padding: 8px 0 3px;
     scroll-snap-type: x proximity;
+    touch-action: pan-x pan-y;
+    overscroll-behavior-x: contain;
   }
   .island-box { min-width: 164px; scroll-snap-align: start; }
   .inset-svg { height: 105px; }
@@ -426,10 +475,15 @@ html[data-theme="dark"] {
     stroke: var(--hover-stroke);
     stroke-width: 2.8;
   }
+  .magnifier-chip { display: inline-flex; }
+  .target-region:focus,
+  .target-region:focus-visible {
+    outline: none !important;
+  }
 }
 
 @media (max-width: 390px) {
-  .piece-panel.mobile-expanded .piece-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .piece-panel:not([data-drawer-state="collapsed"]) .piece-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mobile-map-tools { align-items: flex-start; }
   .mobile-map-tools > span { max-width: 48%; }
   .county-list { grid-template-columns: 1fr; }

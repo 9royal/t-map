@@ -33,3 +33,24 @@ test('isZoomed distinguishes base and magnified view', () => {
   assert.equal(m.isZoomed(base,base),false);
   assert.equal(m.isZoomed({x:0,y:0,width:80,height:80},base),true);
 });
+
+
+test('drawer uses three stable snap states', () => {
+  assert.equal(m.normalizeDrawerState('bad'), 'collapsed');
+  assert.equal(m.cycleDrawerState('collapsed'), 'half');
+  assert.equal(m.cycleDrawerState('half'), 'full');
+  assert.equal(m.cycleDrawerState('full'), 'collapsed');
+  assert.equal(m.drawerStateFromSwipe('collapsed', -60), 'half');
+  assert.equal(m.drawerStateFromSwipe('half', -60), 'full');
+  assert.equal(m.drawerStateFromSwipe('full', 60), 'half');
+  assert.equal(m.drawerStateFromSwipe('half', 10), 'half');
+});
+
+test('magnifier center is the interaction aim point and stays on screen', () => {
+  const g = m.magnifierGeometry(200, 500, 390, 844, 112, 42, 8);
+  assert.deepEqual(g, {left:144, top:346, centerX:200, centerY:402, size:112});
+  const edge = m.magnifierGeometry(10, 40, 390, 844, 112, 42, 8);
+  assert.ok(edge.left >= 8);
+  assert.ok(edge.top >= 8);
+  assert.ok(edge.centerX >= 64);
+});

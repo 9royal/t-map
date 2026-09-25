@@ -66,5 +66,49 @@
     return Math.abs(current.width - base.width) > epsilon || Math.abs(current.height - base.height) > epsilon;
   }
 
-  return { clamp, parseViewBox, formatViewBox, clampViewBox, zoomViewBox, panViewBox, isZoomed };
+  const DRAWER_STATES = ['collapsed', 'half', 'full'];
+
+  function normalizeDrawerState(value) {
+    return DRAWER_STATES.includes(value) ? value : 'collapsed';
+  }
+
+  function stepDrawerState(current, direction) {
+    const state = normalizeDrawerState(current);
+    const index = DRAWER_STATES.indexOf(state);
+    const delta = direction > 0 ? 1 : direction < 0 ? -1 : 0;
+    return DRAWER_STATES[clamp(index + delta, 0, DRAWER_STATES.length - 1)];
+  }
+
+  function cycleDrawerState(current) {
+    const state = normalizeDrawerState(current);
+    if (state === 'collapsed') return 'half';
+    if (state === 'half') return 'full';
+    return 'collapsed';
+  }
+
+  function drawerStateFromSwipe(current, deltaY, threshold = 34) {
+    if (!Number.isFinite(deltaY) || Math.abs(deltaY) < threshold) return normalizeDrawerState(current);
+    return stepDrawerState(current, deltaY < 0 ? 1 : -1);
+  }
+
+  function magnifierGeometry(pointerX, pointerY, viewportWidth, viewportHeight,
+                             size = 112, gap = 42, margin = 8) {
+    if (![pointerX, pointerY, viewportWidth, viewportHeight, size, gap, margin].every(Number.isFinite)) return null;
+    const maxLeft = Math.max(margin, viewportWidth - size - margin);
+    const left = clamp(pointerX - size / 2, margin, maxLeft);
+    let top = pointerY - size - gap;
+    if (top < margin) top = pointerY + 30;
+    const maxTop = Math.max(margin, viewportHeight - size - margin);
+    top = clamp(top, margin, maxTop);
+    return {
+      left,
+      top,
+      centerX: left + size / 2,
+      centerY: top + size / 2,
+      size
+    };
+  }
+
+  return { clamp, parseViewBox, formatViewBox, clampViewBox, zoomViewBox, panViewBox, isZoomed,
+    normalizeDrawerState, stepDrawerState, cycleDrawerState, drawerStateFromSwipe, magnifierGeometry };
 });

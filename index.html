@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
-  <title>T map v1.04｜臺灣行政區互動拼圖</title>
+  <title>T map v1.04.1｜臺灣行政區互動拼圖</title>
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -12,7 +12,7 @@
     <section id="screen-home" class="screen is-active" aria-labelledby="home-title">
       <header class="topbar">
         <div>
-          <p class="eyebrow">T map v1.04</p>
+          <p class="eyebrow">T map v1.04.1</p>
           <h1 id="home-title">臺灣行政區互動拼圖</h1>
           <p class="subtitle">先拼出臺灣，再探索 22 縣市裡的鄉鎮市區。</p>
         </div>
@@ -36,6 +36,7 @@
           <label class="switch-row"><span>🔊 點選時朗讀名稱</span><input id="setting-speech" type="checkbox" checked /></label>
           <label class="switch-row"><span>🏷 顯示行政區名稱</span><input id="setting-labels" type="checkbox" checked /></label>
           <label class="switch-row"><span>🧲 正確位置提示</span><input id="setting-snap" type="checkbox" checked /></label>
+          <label class="switch-row"><span>🔍 手機拖曳放大鏡</span><input id="setting-magnifier" type="checkbox" checked /></label>
           <label class="switch-row"><span>🎉 完成慶祝音效</span><input id="setting-effects" type="checkbox" checked /></label>
           <label class="setting-row"><span>🎨 畫面主題</span><select id="setting-theme" aria-label="畫面主題"><option value="light">淺色</option><option value="dark">深色</option></select></label>
           <div class="progress-summary">
@@ -45,13 +46,13 @@
         </aside>
       </div>
 
-      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.04</footer>
+      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.04.1</footer>
     </section>
 
     <section id="screen-taiwan" class="screen" aria-labelledby="taiwan-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.04 / 第一層</p>
+          <p class="eyebrow">T map v1.04.1 / 第一層</p>
           <h1 id="taiwan-title">臺灣 22 縣市拼圖</h1>
         </div>
         <div class="toolbar">
@@ -66,12 +67,14 @@
         <button id="taiwan-speech" class="chip" type="button"></button>
         <button id="taiwan-labels" class="chip" type="button"></button>
         <button id="taiwan-snap" class="chip" type="button"></button>
+        <button id="taiwan-magnifier" class="chip magnifier-chip" type="button"></button>
         <strong id="taiwan-progress">完成 0 / 22</strong>
       </div>
 
       <div class="puzzle-layout">
-        <aside class="piece-panel" data-drawer="county">
+        <aside class="piece-panel" data-drawer="county" data-drawer-state="collapsed">
           <div class="mobile-drawer-bar">
+            <span class="mobile-drawer-grip" aria-hidden="true"></span>
             <div class="mobile-selection"><span>目前拼圖</span><strong id="taiwan-mobile-selected">尚未選取</strong></div>
             <button class="button mobile-drawer-toggle" type="button" data-action="toggle-piece-drawer" data-drawer="county" aria-expanded="false">展開拼圖</button>
           </div>
@@ -89,7 +92,7 @@
             <span id="selected-name" class="selected-name">尚未選取</span>
           </div>
           <div class="mobile-map-tools" aria-label="手機地圖控制">
-            <span>可雙指縮放；放大後可單指平移</span>
+            <span>未放大時單指上下可捲頁；雙指縮放，放大後單指移圖</span>
             <div class="mobile-map-buttons">
               <button class="button" type="button" data-action="map-zoom-out" data-map="taiwan-main-map" aria-label="縮小臺灣地圖">−</button>
               <button class="button" type="button" data-action="map-zoom-reset" data-map="taiwan-main-map">重設</button>
@@ -101,9 +104,9 @@
               <svg id="taiwan-main-map" class="map-svg mobile-zoomable" viewBox="0 0 560 720" role="img" aria-label="臺灣本島縣市拼圖目標區"></svg>
             </div>
             <div class="island-grid">
-              <div class="island-box"><span>澎湖縣</span><svg id="inset-penghu" class="inset-svg" viewBox="0 0 180 130"></svg></div>
-              <div class="island-box"><span>金門縣</span><svg id="inset-kinmen" class="inset-svg" viewBox="0 0 180 130"></svg></div>
-              <div class="island-box"><span>連江縣</span><svg id="inset-lienchiang" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span class="island-name" data-region-name="澎湖縣" hidden>澎湖縣</span><svg id="inset-penghu" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span class="island-name" data-region-name="金門縣" hidden>金門縣</span><svg id="inset-kinmen" class="inset-svg" viewBox="0 0 180 130"></svg></div>
+              <div class="island-box"><span class="island-name" data-region-name="連江縣" hidden>連江縣</span><svg id="inset-lienchiang" class="inset-svg" viewBox="0 0 180 130"></svg></div>
             </div>
             <p class="scale-note">※ 澎湖、金門、連江為放大顯示，不與臺灣本島同比例。</p>
           </div>
@@ -115,7 +118,7 @@
     <section id="screen-complete" class="screen" aria-labelledby="complete-title">
       <div class="completion-card">
         <div class="celebration" aria-hidden="true">🎉</div>
-        <p class="eyebrow">T map v1.04</p>
+        <p class="eyebrow">T map v1.04.1</p>
         <h1 id="complete-title">臺灣縣市拼圖完成！</h1>
         <p class="completion-lead">你已完成 22 / 22 個縣市。接下來可以把每一個縣市繼續拆開，探索其中的鄉、鎮、市、區。</p>
         <div id="complete-map" class="complete-map"></div>
@@ -131,7 +134,7 @@
     <section id="screen-explorer" class="screen" aria-labelledby="explorer-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.04 / 第二層入口</p>
+          <p class="eyebrow">T map v1.04.1 / 第二層入口</p>
           <h1 id="explorer-title">縣市探索總覽</h1>
           <p class="subtitle">選一個縣市，進入它的鄉鎮市區拼圖。</p>
         </div>
@@ -159,7 +162,7 @@
     <section id="screen-town" class="screen" aria-labelledby="town-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.04 / 鄉鎮市區</p>
+          <p class="eyebrow">T map v1.04.1 / 鄉鎮市區</p>
           <h1 id="town-title">縣市行政區拼圖</h1>
         </div>
         <div class="toolbar">
@@ -173,12 +176,14 @@
         <button id="town-speech" class="chip" type="button"></button>
         <button id="town-labels" class="chip" type="button"></button>
         <button id="town-snap" class="chip" type="button"></button>
+        <button id="town-magnifier" class="chip magnifier-chip" type="button"></button>
         <strong id="town-progress">完成 0 / 0</strong>
       </div>
 
       <div class="puzzle-layout">
-        <aside class="piece-panel" data-drawer="town">
+        <aside class="piece-panel" data-drawer="town" data-drawer-state="collapsed">
           <div class="mobile-drawer-bar">
+            <span class="mobile-drawer-grip" aria-hidden="true"></span>
             <div class="mobile-selection"><span>目前拼圖</span><strong id="town-mobile-selected">尚未選取</strong></div>
             <button class="button mobile-drawer-toggle" type="button" data-action="toggle-piece-drawer" data-drawer="town" aria-expanded="false">展開拼圖</button>
           </div>
@@ -189,7 +194,7 @@
         <section class="map-panel">
           <div class="panel-heading"><h2 id="town-map-heading">縣市輪廓</h2><span id="town-selected-name" class="selected-name">尚未選取</span></div>
           <div class="mobile-map-tools" aria-label="手機地圖控制">
-            <span>小行政區可先選拼圖，再點地圖；可雙指縮放</span>
+            <span>小行政區可先選拼圖再點地圖；未放大時單指可捲頁</span>
             <div class="mobile-map-buttons">
               <button class="button" type="button" data-action="map-zoom-out" data-map="town-map" aria-label="縮小行政區地圖">−</button>
               <button class="button" type="button" data-action="map-zoom-reset" data-map="town-map">重設</button>
@@ -212,9 +217,9 @@
         <li>一般碰觸變色在提示 ON／OFF 都會顯示，僅代表目前碰到的位置。</li>
         <li>正確位置提示 ON：靠近正確行政區時，輪廓以不同顏色明顯發光；OFF：不透露正確位置。兩種設定都保留自動吸附。</li>
         <li>不方便拖曳時：先點拼圖，再點地圖中的位置；手機版將此方式列為主要操作之一。</li>
-        <li>手機版可雙指縮放地圖；放大後可單指平移。縮放不會自動移到正確答案。</li>
+        <li>手機版地圖未放大時，單指上下可正常捲動頁面；可雙指縮放，放大後再以單指平移地圖。縮放不會自動移到正確答案。</li>
         <li>手機觸控在真實行政區邊界外保留小範圍容許值，會以最近的實際輪廓作候選，不會放大或扭曲行政區。</li>
-        <li>手機拖曳進入地圖時，手指上方會顯示局部放大鏡，降低手指遮住小行政區的情況。</li>
+        <li>手機拖曳放大鏡可開關；開啟時以放大鏡中央準星作為碰觸與放置判定點。</li>
         <li>放錯不扣分，拼圖會保留在拼圖片區。</li>
         <li>澎湖、金門、連江使用放大框，位置與比例不代表實際距離。</li>
         <li>完成臺灣或單一縣市時會播放慶祝音效；可在首頁關閉。</li>

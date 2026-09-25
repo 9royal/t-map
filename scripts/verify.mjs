@@ -61,7 +61,7 @@ const app = await readFile(path.join(dist, 'js/app.js'), 'utf8');
 const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
 const mobile = await readFile(path.join(dist, 'js/mobile-map.js'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
-if (pkg.version !== '1.4.0' || version !== 'T map v1.04' || info.version !== '1.04' || !html.includes('T map v1.04') || /T map v1\.0[0-3]/.test(html) || !app.includes("const VERSION = '1.04'") || !helper.includes('geometryDistance') || !mobile.includes('TMapMobile')) {
-  throw new Error('v1.04 版本資訊不一致。');
+if (pkg.version !== '1.4.1' || version !== 'T map v1.04.1' || info.version !== '1.04.1' || !html.includes('T map v1.04.1') || /T map v1\.0[0-3](?!\.)/.test(html) || !app.includes("const VERSION = '1.04.1'") || !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') || !mobile.includes('drawerStateFromSwipe')) {
+  throw new Error('v1.04.1 版本資訊不一致。');
 }
-console.log('✓ v1.04 版本資訊一致');
+console.log('✓ v1.04.1 版本資訊一致');
