@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.04.2';
+  const VERSION = '1.04.3';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -197,8 +197,19 @@
     return magnifier;
   }
 
+  function applyMagnifierCorrectHint(regionName = null) {
+    if (!magnifier?.clone) return;
+    magnifier.clone.querySelectorAll('.target-region.is-near').forEach(el => el.classList.remove('is-near'));
+    if (!regionName) return;
+    const target = Array.from(magnifier.clone.querySelectorAll('.target-region')).find(el => el.dataset.regionName === regionName);
+    if (target && !target.classList.contains('is-placed')) target.classList.add('is-near');
+  }
+
   function hideMagnifier() {
-    if (magnifier) magnifier.el.classList.remove('is-visible');
+    if (magnifier) {
+      magnifier.el.classList.remove('is-visible');
+      applyMagnifierCorrectHint(null);
+    }
   }
 
   function syncMagnifierClasses(source, clone) {
@@ -263,6 +274,11 @@
     drag.usingMagnifier = true;
     drag.aimX = geometry.centerX;
     drag.aimY = geometry.centerY;
+    const lensResult = measureDrop(drag.aimX, drag.aimY, drag.level, drag.name, drag.radius, drag.hitRadius);
+    const lensHintName = TMapHints.correctHintSurface(lensResult.showCorrectHint, true) === 'magnifier'
+      ? lensResult.correct?.dataset.regionName || null
+      : null;
+    applyMagnifierCorrectHint(lensHintName);
   }
 
 
@@ -623,6 +639,7 @@
   // The visible hover and the answer hint are deliberately independent.
   function clearNearTargets() {
     $$('.target-region.is-near, .target-region.is-hovered').forEach(el => {
+      if (el.closest('.map-magnifier')) return;
       el.classList.remove('is-near', 'is-hovered');
     });
   }
@@ -669,7 +686,8 @@
     if (result.hovered && !result.hovered.classList.contains('is-placed')) {
       result.hovered.classList.add('is-hovered');
     }
-    if (result.showCorrectHint && result.correct) result.correct.classList.add('is-near');
+    const hintSurface = TMapHints.correctHintSurface(result.showCorrectHint, !!state.drag?.usingMagnifier);
+    if (hintSurface === 'map' && result.correct) result.correct.classList.add('is-near');
     return result;
   }
 
@@ -1094,6 +1112,7 @@
     if (key === 'effects' && state.settings.effects) ensureAudioContext();
     if (key === 'snapHint' && !state.drag) clearNearTargets();
     if (key === 'snapHint' && state.drag) {
+      if (state.drag.usingMagnifier) updateMagnifier(state.drag);
       const point = dragInteractionPoint(state.drag);
       highlightTargetAt(point.x, point.y, state.drag.name,
         state.drag.level, state.drag.radius, state.drag.hitRadius);
@@ -1189,7 +1208,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.2</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.2 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.3</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.3 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

@@ -75,5 +75,10 @@
     return geometryDistance(path, x, y, radius) <= radius;
   }
 
-  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity };
+  function correctHintSurface(showCorrectHint, usingMagnifier) {
+    if (!showCorrectHint) return 'none';
+    return usingMagnifier ? 'magnifier' : 'map';
+  }
+
+  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface };
 });

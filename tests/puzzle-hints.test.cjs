@@ -56,3 +56,11 @@ test('proximity accepts a true fill and nearby boundary, rejects distant points'
     assert.equal(h.geometryProximity(path,50,50,3),false);
   } finally {global.DOMPoint=old;}
 });
+
+
+test('correct hint renders on exactly one surface', () => {
+  assert.equal(h.correctHintSurface(false, false), 'none');
+  assert.equal(h.correctHintSurface(false, true), 'none');
+  assert.equal(h.correctHintSurface(true, false), 'map');
+  assert.equal(h.correctHintSurface(true, true), 'magnifier');
+});

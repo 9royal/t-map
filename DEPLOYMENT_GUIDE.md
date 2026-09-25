@@ -1,4 +1,4 @@
-# T map v1.04.2｜更新現有 GitHub + Cloudflare Pages 網站
+# T map v1.04.3｜更新現有 GitHub + Cloudflare Pages 網站
 
 ## 1. 先保留目前成功版本
 
@@ -6,9 +6,9 @@
 
 ## 2. 更新 Repository
 
-建議使用 GitHub Desktop：Clone repository → 在檔案總管開啟專案資料夾 → 將 v1.04.2 update ZIP 內的所有檔案複製到該根目錄並合併／覆蓋同名檔案 → 檢查 Changes → Commit → Push origin。
+建議使用 GitHub Desktop：Clone repository → 在檔案總管開啟專案資料夾 → 將 v1.04.3 update ZIP 內的所有檔案複製到該根目錄並合併／覆蓋同名檔案 → 檢查 Changes → Commit → Push origin。
 
-若使用 GitHub 網頁，應先建立新分支（例如 `v1.04-testing`），依完整資料夾路徑上傳更動檔案，待建置與預覽通過後再合併到 main。根目錄必須直接有 index.html、package.json、css/、js/、scripts/、README.md 等；不可多包一層 T-map-v1.04.2-update。不要上傳 node_modules、dist 或個人金鑰。ZIP 內含完整 scripts 資料夾，避免再次遺漏 build.mjs。
+若使用 GitHub 網頁，應先建立新分支（例如 `v1.04-testing`），依完整資料夾路徑上傳更動檔案，待建置與預覽通過後再合併到 main。根目錄必須直接有 index.html、package.json、css/、js/、scripts/、README.md 等；不可多包一層 T-map-v1.04.3-update。不要上傳 node_modules、dist 或個人金鑰。ZIP 內含完整 scripts 資料夾，避免再次遺漏 build.mjs。
 
 ## 3. Cloudflare Pages 保持原有設定
 
