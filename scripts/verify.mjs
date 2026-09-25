@@ -64,18 +64,18 @@ const registry = await readFile(path.join(dist, 'js/map-registry.js'), 'utf8');
 const engine = await readFile(path.join(dist, 'js/map-engine.js'), 'utf8');
 const speech = await readFile(path.join(dist, 'js/speech-profiles.js'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
-if (pkg.version !== '1.5.0' || version !== 'T map v1.05' || info.version !== '1.05' ||
-    !html.includes('T map v1.05') || !app.includes("const VERSION = '1.05'") ||
-    !html.includes('screen-catalog') || !html.includes('map-registry.js?v=1.05') || !html.includes('map-engine.js?v=1.05') ||
+if (pkg.version !== '1.5.1' || version !== 'T map v1.05.1' || info.version !== '1.05.1' ||
+    !html.includes('T map v1.05.1') || !app.includes("const VERSION = '1.05.1'") ||
+    !html.includes('screen-catalog') || !html.includes('map-registry.js?v=1.05.1') || !html.includes('map-engine.js?v=1.05.1') ||
     !registry.includes("id: 'taiwan'") || !registry.includes("id: 'china-provincial'") || !registry.includes("id: 'world'") ||
     !registry.includes("status: 'ready'") || !registry.includes("status: 'planned'") || !engine.includes('progressStatus') || !engine.includes('playableRegions') ||
     !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') ||
     !speech.includes('taiwanese') || !speech.includes('english') || !speech.includes('modesForMap') ||
     !helper.includes('correctHintSurface') || !app.includes('applyMagnifierCorrectHint') ||
-    !html.includes('style.css?v=1.05') || !html.includes('app.js?v=1.05')) {
-  throw new Error('v1.05 版本或多地圖平台資訊不一致。');
+    !html.includes('style.css?v=1.05.1') || !html.includes('app.js?v=1.05.1')) {
+  throw new Error('v1.05.1 版本或多地圖平台資訊不一致。');
 }
 if (!Array.isArray(info.platformMaps) || info.platformMaps.length !== 3 || info.readyMaps?.[0] !== 'taiwan') {
-  throw new Error('v1.05 build-info 多地圖平台資料異常。');
+  throw new Error('v1.05.1 build-info 多地圖平台資料異常。');
 }
-console.log('✓ v1.05 版本與多地圖平台資訊一致');
+console.log('✓ v1.05.1 版本與多地圖平台資訊一致');

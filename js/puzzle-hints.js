@@ -16,7 +16,7 @@
     return {
       hovered: !!hoveredName,
       correctHit,
-      showCorrectHint: !!snapHint && !!selectedName && !!nearCorrect,
+      showCorrectHint: !!snapHint && !!selectedName && (correctHit || !!nearCorrect),
       canPlace: !!selectedName && (correctHit || !!nearCorrect)
     };
   }
@@ -87,7 +87,6 @@
         !Number.isFinite(magnifierScale) || magnifierScale <= 0) return 0;
     return crosshairOuterRadius / magnifierScale;
   }
-
 
   function crosshairCircleContact({ centerInside = false, boundaryDistance = Infinity, radius = 0 } = {}) {
     if (centerInside) return true;
