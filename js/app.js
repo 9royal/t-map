@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.04.1';
+  const VERSION = '1.04.2';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -15,7 +15,7 @@
   };
 
   const state = {
-    settings: { speech: true, labels: true, snapHint: true, magnifier: true, effects: true, theme: 'light' },
+    settings: { speech: true, speechMode: 'mandarin', labels: true, snapHint: true, magnifier: true, effects: true, theme: 'light' },
     progress: { taiwan: [], towns: {} },
     last: { screen: 'home', county: null },
     data: { counties: [], towns: [] },
@@ -421,6 +421,7 @@
       const saved = JSON.parse(raw);
       if (saved.settings) Object.assign(state.settings, saved.settings);
       if (!['light','dark'].includes(state.settings.theme)) state.settings.theme = 'light';
+      state.settings.speechMode = TMapSpeech.normalizeMode(state.settings.speechMode);
       if (saved.progress) {
         state.progress.taiwan = Array.isArray(saved.progress.taiwan) ? saved.progress.taiwan : [];
         state.progress.towns = saved.progress.towns || {};
@@ -479,15 +480,59 @@
     return String(feature?.properties?.COUNTYCODE || feature?.id || countyName(feature));
   }
 
-  function speak(text) {
+  let speechRetryTimer = 0;
+  let speechNoticeTimer = 0;
+
+  function showSpeechNotice(message) {
+    let el = $('#speech-notice');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'speech-notice';
+      el.className = 'speech-notice';
+      el.setAttribute('role', 'status');
+      el.setAttribute('aria-live', 'polite');
+      document.body.append(el);
+    }
+    el.textContent = message;
+    el.classList.add('is-visible');
+    clearTimeout(speechNoticeTimer);
+    speechNoticeTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
+  }
+
+  function speak(text, retry = false) {
     if (!state.settings.speech || !('speechSynthesis' in window)) return;
+    const profile = TMapSpeech.getProfile(state.settings.speechMode);
+    const voices = window.speechSynthesis.getVoices();
+    const voice = TMapSpeech.findVoice(voices, state.settings.speechMode);
+
+    // Chrome/WebKit can briefly report an empty voice list before voiceschanged.
+    if (!voices.length && !retry) {
+      clearTimeout(speechRetryTimer);
+      speechRetryTimer = setTimeout(() => speak(text, true), 220);
+      return;
+    }
+
+    if (state.settings.speechMode === 'taiwanese' && !voice) {
+      window.speechSynthesis.cancel();
+      showSpeechNotice('此裝置目前沒有可用的台語語音；可改用國語，或在系統語音設定中安裝台語語音。');
+      return;
+    }
+
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'zh-TW';
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => /zh[-_]TW/i.test(v.lang)) || voices.find(v => /^zh/i.test(v.lang));
+    utterance.lang = profile.lang;
     if (voice) utterance.voice = voice;
     window.speechSynthesis.speak(utterance);
+  }
+
+  function setSpeechMode(mode) {
+    state.settings.speechMode = TMapSpeech.normalizeMode(mode);
+    saveState();
+    updateSettingChips();
+  }
+
+  function cycleSpeechMode() {
+    setSpeechMode(TMapSpeech.nextMode(state.settings.speechMode));
   }
 
   function shuffle(array) {
@@ -549,7 +594,12 @@
         }
         selectPiece(feature, level, button);
       });
-      button.addEventListener('pointerdown', (event) => beginDrag(event, feature, level, button));
+      button.addEventListener('pointerdown', (event) => {
+        // On touch devices, the silhouette itself is the drag handle. Starting on the
+        // label/card background remains available for list/page scrolling.
+        if (event.pointerType === 'touch' && !event.target.closest('svg')) return;
+        beginDrag(event, feature, level, button);
+      });
       container.append(button);
     });
   }
@@ -668,6 +718,7 @@
   function beginDrag(event, feature, level, sourceButton) {
     if (event.button !== undefined && event.button !== 0) return;
     if (state.drag) return;
+    if (event.pointerType === 'touch') event.preventDefault();
     selectPiece(feature, level);
     const name = level === 'county' ? countyName(feature) : townName(feature);
     const ghost = document.createElement('div');
@@ -1018,6 +1069,11 @@
       });
     });
     $('#setting-speech').checked = state.settings.speech;
+    $('#setting-speech-mode').value = state.settings.speechMode;
+    ['taiwan-speech-mode','town-speech-mode'].forEach(id => {
+      const el = $('#' + id);
+      if (el) el.textContent = `🗣 ${TMapSpeech.getProfile(state.settings.speechMode).label}`;
+    });
     $('#setting-labels').checked = state.settings.labels;
     $('#setting-snap').checked = state.settings.snapHint;
     $('#setting-magnifier').checked = state.settings.magnifier;
@@ -1074,6 +1130,10 @@
 
   function bindControls() {
     bindDrawerGestures();
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Tab' || event.key.startsWith('Arrow')) document.body.classList.add('keyboard-nav');
+    }, true);
+    document.addEventListener('pointerdown', () => document.body.classList.remove('keyboard-nav'), true);
     document.addEventListener('pointerdown', () => ensureAudioContext(), { once: true, passive: true });
     document.addEventListener('click', event => {
       const action = event.target.closest('[data-action]')?.dataset.action;
@@ -1097,16 +1157,19 @@
     });
 
     $('#setting-speech').addEventListener('change', () => toggleSetting('speech'));
+    $('#setting-speech-mode').addEventListener('change', event => setSpeechMode(event.target.value));
     $('#setting-labels').addEventListener('change', () => toggleSetting('labels'));
     $('#setting-snap').addEventListener('change', () => toggleSetting('snapHint'));
     $('#setting-magnifier').addEventListener('change', () => toggleSetting('magnifier'));
     $('#setting-effects').addEventListener('change', () => toggleSetting('effects'));
     $('#setting-theme').addEventListener('change', event => setTheme(event.target.value));
     $('#taiwan-speech').addEventListener('click', () => toggleSetting('speech'));
+    $('#taiwan-speech-mode').addEventListener('click', cycleSpeechMode);
     $('#taiwan-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#taiwan-snap').addEventListener('click', () => toggleSetting('snapHint'));
     $('#taiwan-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
     $('#town-speech').addEventListener('click', () => toggleSetting('speech'));
+    $('#town-speech-mode').addEventListener('click', cycleSpeechMode);
     $('#town-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#town-snap').addEventListener('click', () => toggleSetting('snapHint'));
     $('#town-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
@@ -1126,7 +1189,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.1</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.1 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.2</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.2 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

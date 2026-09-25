@@ -10,7 +10,7 @@ const dist = path.join(root, 'dist');
 if (!existsSync(dist)) throw new Error('找不到 dist/；請先執行 npm run build。');
 
 const expected = [
-  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js', 'js/mobile-map.js',
+  'index.html', 'css/style.css', 'js/app.js', 'js/puzzle-hints.js', 'js/mobile-map.js', 'js/speech-profiles.js',
   'lib/d3.min.js', 'lib/topojson-client.min.js',
   'data/counties-10t.json', 'data/towns-10t.json',
   'build-info.json'
@@ -60,8 +60,9 @@ const html = await readFile(path.join(dist, 'index.html'), 'utf8');
 const app = await readFile(path.join(dist, 'js/app.js'), 'utf8');
 const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
 const mobile = await readFile(path.join(dist, 'js/mobile-map.js'), 'utf8');
+const speech = await readFile(path.join(dist, 'js/speech-profiles.js'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
-if (pkg.version !== '1.4.1' || version !== 'T map v1.04.1' || info.version !== '1.04.1' || !html.includes('T map v1.04.1') || /T map v1\.0[0-3](?!\.)/.test(html) || !app.includes("const VERSION = '1.04.1'") || !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') || !mobile.includes('drawerStateFromSwipe')) {
-  throw new Error('v1.04.1 版本資訊不一致。');
+if (pkg.version !== '1.4.2' || version !== 'T map v1.04.2' || info.version !== '1.04.2' || !html.includes('T map v1.04.2') || /T map v1\.0[0-3](?!\.)/.test(html) || !app.includes("const VERSION = '1.04.2'") || !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') || !mobile.includes('drawerStateFromSwipe') || !speech.includes('taiwanese') || !speech.includes('english') || !html.includes('style.css?v=1.04.2') || !html.includes('app.js?v=1.04.2')) {
+  throw new Error('v1.04.2 版本資訊不一致。');
 }
-console.log('✓ v1.04.1 版本資訊一致');
+console.log('✓ v1.04.2 版本資訊一致');

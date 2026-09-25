@@ -488,3 +488,61 @@ html[data-theme="dark"] {
   .mobile-map-tools > span { max-width: 48%; }
   .county-list { grid-template-columns: 1fr; }
 }
+
+/* v1.04.2: touch drag arbitration, path-only keyboard focus, speech language UI. */
+.setting-note {
+  margin: 8px 0 2px;
+  color: var(--muted);
+  font-size: .82rem;
+  line-height: 1.55;
+}
+.speech-mode-chip { font-weight: 750; }
+.speech-notice {
+  position: fixed;
+  z-index: 140;
+  top: max(14px, env(safe-area-inset-top));
+  left: 50%;
+  width: min(92vw, 560px);
+  transform: translate(-50%, -12px);
+  padding: 11px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 8px 28px rgb(0 0 0 / .22);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .16s ease, transform .16s ease;
+}
+.speech-notice.is-visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* SVG paths should never receive a rectangular browser focus box. Keyboard
+   navigation remains visible by emphasizing the actual administrative border. */
+.target-region:focus,
+.target-region:focus-visible {
+  outline: none !important;
+}
+.keyboard-nav .target-region:focus:not(.is-placed) {
+  stroke: var(--accent);
+  stroke-width: 3.2;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 60%, transparent));
+}
+
+/* On coarse pointers the silhouette is the drag handle. This prevents the page
+   from moving while the user is actually carrying a piece, while the label/card
+   background remains available for list/page scrolling. */
+@media (pointer: coarse) {
+  .piece-card { touch-action: pan-y; }
+  .piece-card svg {
+    touch-action: none !important;
+    cursor: grab;
+  }
+  .piece-card.is-dragging svg { cursor: grabbing; }
+  .target-region { -webkit-tap-highlight-color: transparent; }
+}
+
+@media (max-width: 640px) and (pointer: coarse) {
+  .piece-panel[data-drawer-state="collapsed"] .piece-card { touch-action: pan-x pan-y; }
+  .piece-panel:not([data-drawer-state="collapsed"]) .piece-card { touch-action: pan-y; }
+  .piece-card svg { touch-action: none !important; }
+}

@@ -4,15 +4,15 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
-  <title>T map v1.04.1｜臺灣行政區互動拼圖</title>
-  <link rel="stylesheet" href="css/style.css" />
+  <title>T map v1.04.2｜臺灣行政區互動拼圖</title>
+  <link rel="stylesheet" href="css/style.css?v=1.04.2" />
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
     <section id="screen-home" class="screen is-active" aria-labelledby="home-title">
       <header class="topbar">
         <div>
-          <p class="eyebrow">T map v1.04.1</p>
+          <p class="eyebrow">T map v1.04.2</p>
           <h1 id="home-title">臺灣行政區互動拼圖</h1>
           <p class="subtitle">先拼出臺灣，再探索 22 縣市裡的鄉鎮市區。</p>
         </div>
@@ -34,6 +34,8 @@
         <aside class="settings-card" aria-labelledby="settings-title">
           <h2 id="settings-title">學習設定</h2>
           <label class="switch-row"><span>🔊 點選時朗讀名稱</span><input id="setting-speech" type="checkbox" checked /></label>
+          <label class="setting-row"><span>🗣 朗讀語言</span><select id="setting-speech-mode" aria-label="朗讀語言"><option value="mandarin">國語</option><option value="taiwanese">台語（裝置支援時）</option></select></label>
+          <p class="setting-note">台語使用裝置提供的台語／Hokkien 語音；若裝置沒有安裝，系統不會用國語假裝台語。</p>
           <label class="switch-row"><span>🏷 顯示行政區名稱</span><input id="setting-labels" type="checkbox" checked /></label>
           <label class="switch-row"><span>🧲 正確位置提示</span><input id="setting-snap" type="checkbox" checked /></label>
           <label class="switch-row"><span>🔍 手機拖曳放大鏡</span><input id="setting-magnifier" type="checkbox" checked /></label>
@@ -46,13 +48,13 @@
         </aside>
       </div>
 
-      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.04.1</footer>
+      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.04.2</footer>
     </section>
 
     <section id="screen-taiwan" class="screen" aria-labelledby="taiwan-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.04.1 / 第一層</p>
+          <p class="eyebrow">T map v1.04.2 / 第一層</p>
           <h1 id="taiwan-title">臺灣 22 縣市拼圖</h1>
         </div>
         <div class="toolbar">
@@ -65,6 +67,7 @@
 
       <div class="statusbar">
         <button id="taiwan-speech" class="chip" type="button"></button>
+        <button id="taiwan-speech-mode" class="chip speech-mode-chip" type="button" aria-label="切換朗讀語言"></button>
         <button id="taiwan-labels" class="chip" type="button"></button>
         <button id="taiwan-snap" class="chip" type="button"></button>
         <button id="taiwan-magnifier" class="chip magnifier-chip" type="button"></button>
@@ -82,7 +85,7 @@
             <h2>拼圖片區</h2>
             <span id="taiwan-remaining">22 塊</span>
           </div>
-          <p class="hint">可拖曳；也可先點拼圖，再點地圖位置。</p>
+          <p class="hint">可拖曳；手機／平板請從拼圖圖形開始拖，從名稱或卡片空白處滑動可瀏覽清單。也可先點拼圖，再點地圖位置。</p>
           <div id="taiwan-piece-list" class="piece-list"></div>
         </aside>
 
@@ -118,7 +121,7 @@
     <section id="screen-complete" class="screen" aria-labelledby="complete-title">
       <div class="completion-card">
         <div class="celebration" aria-hidden="true">🎉</div>
-        <p class="eyebrow">T map v1.04.1</p>
+        <p class="eyebrow">T map v1.04.2</p>
         <h1 id="complete-title">臺灣縣市拼圖完成！</h1>
         <p class="completion-lead">你已完成 22 / 22 個縣市。接下來可以把每一個縣市繼續拆開，探索其中的鄉、鎮、市、區。</p>
         <div id="complete-map" class="complete-map"></div>
@@ -134,7 +137,7 @@
     <section id="screen-explorer" class="screen" aria-labelledby="explorer-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.04.1 / 第二層入口</p>
+          <p class="eyebrow">T map v1.04.2 / 第二層入口</p>
           <h1 id="explorer-title">縣市探索總覽</h1>
           <p class="subtitle">選一個縣市，進入它的鄉鎮市區拼圖。</p>
         </div>
@@ -162,7 +165,7 @@
     <section id="screen-town" class="screen" aria-labelledby="town-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.04.1 / 鄉鎮市區</p>
+          <p class="eyebrow">T map v1.04.2 / 鄉鎮市區</p>
           <h1 id="town-title">縣市行政區拼圖</h1>
         </div>
         <div class="toolbar">
@@ -174,6 +177,7 @@
 
       <div class="statusbar">
         <button id="town-speech" class="chip" type="button"></button>
+        <button id="town-speech-mode" class="chip speech-mode-chip" type="button" aria-label="切換朗讀語言"></button>
         <button id="town-labels" class="chip" type="button"></button>
         <button id="town-snap" class="chip" type="button"></button>
         <button id="town-magnifier" class="chip magnifier-chip" type="button"></button>
@@ -188,7 +192,7 @@
             <button class="button mobile-drawer-toggle" type="button" data-action="toggle-piece-drawer" data-drawer="town" aria-expanded="false">展開拼圖</button>
           </div>
           <div class="panel-heading"><h2 id="town-piece-heading">行政區拼圖片</h2><span id="town-remaining"></span></div>
-          <p class="hint">行政區較小，點選後再點地圖也是正式操作方式。</p>
+          <p class="hint">行政區較小，點選後再點地圖也是正式操作方式。手機／平板拖曳請從拼圖圖形開始。</p>
           <div id="town-piece-list" class="piece-list"></div>
         </aside>
         <section class="map-panel">
@@ -212,8 +216,8 @@
     <form method="dialog" class="dialog-card">
       <h2>操作方式</h2>
       <ol>
-        <li>點拼圖：選取並依設定朗讀名稱。</li>
-        <li>拖曳拼圖到地圖：文字標籤會跟隨指標，進入地圖後背景半透明；放對後自動吸附。</li>
+        <li>點拼圖：選取並依設定朗讀名稱。臺灣地圖可切換國語／台語；台語依裝置語音支援。</li>
+        <li>拖曳拼圖到地圖：文字標籤會跟隨指標，進入地圖後背景半透明；放對後自動吸附。手機／平板請從拼圖圖形本身開始拖曳，避免與頁面捲動衝突。</li>
         <li>一般碰觸變色在提示 ON／OFF 都會顯示，僅代表目前碰到的位置。</li>
         <li>正確位置提示 ON：靠近正確行政區時，輪廓以不同顏色明顯發光；OFF：不透露正確位置。兩種設定都保留自動吸附。</li>
         <li>不方便拖曳時：先點拼圖，再點地圖中的位置；手機版將此方式列為主要操作之一。</li>
@@ -243,8 +247,9 @@
 
   <script src="lib/d3.min.js"></script>
   <script src="lib/topojson-client.min.js"></script>
-  <script src="js/puzzle-hints.js"></script>
-  <script src="js/mobile-map.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/puzzle-hints.js?v=1.04.2"></script>
+  <script src="js/mobile-map.js?v=1.04.2"></script>
+  <script src="js/speech-profiles.js?v=1.04.2"></script>
+  <script src="js/app.js?v=1.04.2"></script>
 </body>
 </html>

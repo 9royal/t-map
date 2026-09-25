@@ -1,8 +1,8 @@
 {
   "name": "t-map",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "private": true,
-  "description": "T map v1.04.1 - 手機觸控互動修正版",
+  "description": "T map v1.04.2 - 觸控拖曳、焦點顯示與多語朗讀架構修正版",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",

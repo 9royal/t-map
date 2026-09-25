@@ -1,23 +1,20 @@
-# T map v1.04.1 測試紀錄
+# T map v1.04.2 測試紀錄
 
 ## 已完成的自動檢查
 
-- JavaScript 語法檢查：`app.js`、`puzzle-hints.js`、`mobile-map.js`、build / verify 腳本。
-- Node.js 單元測試：12 項通過（包含 v1.04.1 三段式抽屜與放大鏡準星位置判定）。
-  - 提示 ON/OFF 與錯誤碰觸。
-  - 已完成區不可重複放置。
-  - 實際路徑距離與邊界附近容許值。
-  - viewBox 解析。
-  - 以焦點縮放、最大約 4 倍限制。
-  - 平移不得超出原始 viewBox。
-  - 是否處於放大狀態判定。
-- Headless Chromium 響應式樣式煙霧測試：390px 觸控 viewport 下底部抽屜為 fixed、手機地圖工具與放大鏡開關顯示；未放大地圖 `touch-action: pan-y`，加上放大狀態後切為 `none`；收合拼圖片允許橫向與垂直手勢判斷。800px 觸控 viewport 下恢復一般版面，拼圖片 `touch-action: pan-y` 以保留頁面垂直捲動。
-- 建置腳本煙霧測試：已使用不隨發行包提供的本地測試替身執行 `build.mjs` 與 `verify.mjs`；22／368 數量、部署檔、外部 CDN 與 v1.04.1 版本一致性檢查通過。此項只驗證建置流程，不等於真實圖資與函式庫端對端驗收。
-- 靜態版本一致性與 ZIP 結構於封裝前再次檢查。
+- JavaScript 語法檢查：`app.js`、`puzzle-hints.js`、`mobile-map.js`、`speech-profiles.js`、build / verify 腳本。
+- Node.js 單元測試：**16 項全部通過**。
+  - 提示 ON/OFF、錯誤碰觸與完成區判定。
+  - 真實 SVG 距離與邊界容許值。
+  - viewBox 縮放、平移、最大約 4 倍與邊界限制。
+  - 三段式抽屜與放大鏡準星位置。
+  - 國語 voice 選擇、台語 `nan-TW`／Hokkien 辨識、未來 English profile。
+- Headless Chromium CSS 煙霧測試：390px 與 800px 觸控 viewport 下，拼圖**圖形 SVG 的 `touch-action` 為 `none`**，卡片本體仍保留捲動手勢；行政區取得 focus 時 computed outline 為 `none`，不會再出現矩形框。
+- 建置腳本煙霧測試：使用本地測試替身執行 `build.mjs` 與 `verify.mjs`；22／368 數量、部署檔、外部 CDN、speech profile、`?v=1.04.2` 資源版本與 v1.04.2 版本一致性檢查均通過。此項驗證的是建置流程，不等於真實圖資／語音 voice 的裝置端端對端驗收。
 
 ## 正式發布前仍需人工裝置驗收
 
-本執行環境不等於實際 iOS Safari／Android Chrome 觸控裝置。嘗試 `npm install` 時因本環境無法取得 npm Registry 而逾時，因此未在此處完成 Cloudflare 真實 npm 依賴建置。因此 v1.04.1 正式合併 main 前，請先使用 `v1.04-testing` Preview 測試：
+本執行環境不等於實際 iOS Safari／Android Chrome 觸控裝置。嘗試 `npm install` 時因本環境無法取得 npm Registry 而逾時，因此未在此處完成 Cloudflare 真實 npm 依賴建置。因此 v1.04.2 正式合併 main 前，請先使用 `v1.04-testing` Preview 測試：
 
 1. 360×800、390×844、430×932 手機 viewport。
 2. 拼圖片抽屜的收合／半展開／全展開三段切換；把手向上／向下滑動不應拖動整頁。
@@ -34,9 +31,17 @@
 13. 完成進度、重新整理、深淺色、語音與音效正常。
 
 
-## v1.04.1 新增實機驗收
+## v1.04.2 新增實機驗收
 
 - 外島三個放大框：未完成時不可看到「澎湖縣／金門縣／連江縣」文字；完成後名稱 ON 才出現。
 - 放大鏡 OFF：拖曳判定點與手指位置一致。
 - 放大鏡 ON：以放大鏡中央十字準星對準行政區；一般碰觸色與最終放置結果必須和準星一致，不再以拖曳文字或手指中心作判定。
 - 觸控點選行政區時不出現藍色矩形 focus 方框；使用實體鍵盤 Tab 時仍應看得到自訂焦點提示。
+
+## v1.04.2 本輪新增實機驗收
+
+- 手機／平板：手指從**拼圖圖形**開始往地圖拖，頁面不得跟著上下滑；從拼圖名稱或卡片空白處滑動時，仍可瀏覽清單／頁面。
+- 地圖點選：滑鼠、手指點行政區都不可出現黑色或藍色矩形框；實體鍵盤 Tab 則應看到行政區輪廓本身被高亮。
+- 國語：選取行政區可正常使用臺灣中文 voice。
+- 台語：有安裝台語／Hokkien voice 的裝置應以台語朗讀；沒有支援時應出現提示，不能改用國語假裝台語。
+- 重新部署 Preview 後，以同一手機重新整理，確認 CSS／JS 版號皆為 v1.04.2，避免舊資源殘留。
