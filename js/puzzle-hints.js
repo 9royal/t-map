@@ -80,5 +80,11 @@
     return usingMagnifier ? 'magnifier' : 'map';
   }
 
-  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface };
+  function magnifierHintName({ centerRegionName = null, selectedName = null,
+                               snapHint = false, placed = false } = {}) {
+    if (!snapHint || placed || !centerRegionName || !selectedName) return null;
+    return centerRegionName === selectedName ? centerRegionName : null;
+  }
+
+  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface, magnifierHintName };
 });

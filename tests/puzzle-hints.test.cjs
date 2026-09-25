@@ -64,3 +64,15 @@ test('correct hint renders on exactly one surface', () => {
   assert.equal(h.correctHintSurface(true, false), 'map');
   assert.equal(h.correctHintSurface(true, true), 'magnifier');
 });
+
+
+test('magnifier hint is driven only by the crosshair center region', () => {
+  assert.equal(h.magnifierHintName({centerRegionName:'新店區', selectedName:'新店區', snapHint:true}), '新店區');
+  assert.equal(h.magnifierHintName({centerRegionName:'板橋區', selectedName:'新店區', snapHint:true}), null);
+  assert.equal(h.magnifierHintName({centerRegionName:null, selectedName:'新店區', snapHint:true}), null);
+});
+
+test('magnifier hint respects OFF and placed states', () => {
+  assert.equal(h.magnifierHintName({centerRegionName:'新店區', selectedName:'新店區', snapHint:false}), null);
+  assert.equal(h.magnifierHintName({centerRegionName:'新店區', selectedName:'新店區', snapHint:true, placed:true}), null);
+});

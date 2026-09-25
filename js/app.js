@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.04.3';
+  const VERSION = '1.04.4';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -274,10 +274,16 @@
     drag.usingMagnifier = true;
     drag.aimX = geometry.centerX;
     drag.aimY = geometry.centerY;
-    const lensResult = measureDrop(drag.aimX, drag.aimY, drag.level, drag.name, drag.radius, drag.hitRadius);
-    const lensHintName = TMapHints.correctHintSurface(lensResult.showCorrectHint, true) === 'magnifier'
-      ? lensResult.correct?.dataset.regionName || null
-      : null;
+    // v1.04.4: the magnifier hint is controlled by the region directly
+    // underneath the crosshair. Do not reveal the selected answer merely because
+    // its boundary is within the smart proximity radius.
+    const centerTarget = hitRegionAt(drag.aimX, drag.aimY, drag.level);
+    const lensHintName = TMapHints.magnifierHintName({
+      centerRegionName: centerTarget?.dataset.regionName || null,
+      selectedName: drag.name,
+      snapHint: state.settings.snapHint,
+      placed: !!centerTarget?.classList.contains('is-placed')
+    });
     applyMagnifierCorrectHint(lensHintName);
   }
 
@@ -1208,7 +1214,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.3</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.3 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.4</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.4 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {
