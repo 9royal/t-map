@@ -80,11 +80,25 @@
     return usingMagnifier ? 'magnifier' : 'map';
   }
 
-  function magnifierHintName({ centerRegionName = null, selectedName = null,
-                               snapHint = false, placed = false } = {}) {
-    if (!snapHint || placed || !centerRegionName || !selectedName) return null;
-    return centerRegionName === selectedName ? centerRegionName : null;
+  function magnifierSourceRadius(crosshairOuterRadius = 8, magnifierScale = 2.35) {
+    if (!Number.isFinite(crosshairOuterRadius) || crosshairOuterRadius < 0 ||
+        !Number.isFinite(magnifierScale) || magnifierScale <= 0) return 0;
+    return crosshairOuterRadius / magnifierScale;
   }
 
-  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface, magnifierHintName };
+  function magnifierContact({ touchesCorrect = false, selectedName = null,
+                              snapHint = false, placed = false } = {}) {
+    const canPlace = !placed && !!selectedName && !!touchesCorrect;
+    return {
+      canPlace,
+      showCorrectHint: canPlace && !!snapHint,
+      hintName: canPlace && !!snapHint ? selectedName : null
+    };
+  }
+
+  function magnifierHintName(options = {}) {
+    return magnifierContact(options).hintName;
+  }
+
+  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface, magnifierSourceRadius, magnifierContact, magnifierHintName };
 });

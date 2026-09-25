@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.04.4';
+  const VERSION = '1.04.5';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -29,6 +29,9 @@
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   let audioContext = null;
   const MOBILE_BREAKPOINT = 640;
+  const MAGNIFIER_SCALE = 2.35;
+  // CSS crosshair: 12px content + 2px border on each side = 16px outer diameter.
+  const MAGNIFIER_CROSSHAIR_OUTER_RADIUS = 8;
   const mobileMapStates = new WeakMap();
   let magnifier = null;
 
@@ -227,8 +230,27 @@
     return { x: drag?.x, y: drag?.y };
   }
 
+  function magnifierContactRadius() {
+    return TMapHints.magnifierSourceRadius(MAGNIFIER_CROSSHAIR_OUTER_RADIUS, MAGNIFIER_SCALE);
+  }
+
+  function magnifierContactDecision(drag) {
+    const correct = correctTargetPath(drag?.name, drag?.level);
+    const placed = !!correct?.classList.contains('is-placed');
+    const touchesCorrect = !!correct && !placed && Number.isFinite(drag?.aimX) && Number.isFinite(drag?.aimY) &&
+      TMapHints.geometryProximity(correct, drag.aimX, drag.aimY, magnifierContactRadius());
+    return TMapHints.magnifierContact({
+      touchesCorrect,
+      selectedName: drag?.name || null,
+      snapHint: state.settings.snapHint,
+      placed
+    });
+  }
+
   function updateMagnifier(drag) {
     drag.usingMagnifier = false;
+    drag.magnifierTouchesCorrect = false;
+    drag.magnifierContactRadius = magnifierContactRadius();
     drag.aimX = drag.x;
     drag.aimY = drag.y;
     if (!state.settings.magnifier || !isMobileLayout() || drag.pointerType !== 'touch') {
@@ -258,7 +280,7 @@
       mag.clone = clone;
     }
     syncMagnifierClasses(source, mag.clone);
-    const scale = 2.35;
+    const scale = MAGNIFIER_SCALE;
     const localX = geometry.centerX - rect.left;
     const localY = geometry.centerY - rect.top;
     Object.assign(mag.clone.style, {
@@ -274,17 +296,13 @@
     drag.usingMagnifier = true;
     drag.aimX = geometry.centerX;
     drag.aimY = geometry.centerY;
-    // v1.04.4: the magnifier hint is controlled by the region directly
-    // underneath the crosshair. Do not reveal the selected answer merely because
-    // its boundary is within the smart proximity radius.
-    const centerTarget = hitRegionAt(drag.aimX, drag.aimY, drag.level);
-    const lensHintName = TMapHints.magnifierHintName({
-      centerRegionName: centerTarget?.dataset.regionName || null,
-      selectedName: drag.name,
-      snapHint: state.settings.snapHint,
-      placed: !!centerTarget?.classList.contains('is-placed')
-    });
-    applyMagnifierCorrectHint(lensHintName);
+    // v1.04.5: hint and final placement share the same physical rule.
+    // The visible crosshair is a 16px outer circle inside a 2.35x lens, so the
+    // equivalent contact radius on the source map is about 3.4 CSS pixels.
+    // A hint appears only when that circle actually touches the selected region.
+    const contact = magnifierContactDecision(drag);
+    drag.magnifierTouchesCorrect = contact.canPlace;
+    applyMagnifierCorrectHint(contact.hintName);
   }
 
 
@@ -708,6 +726,9 @@
     if (drag.frame) cancelAnimationFrame(drag.frame);
     if (!cancelled && drag.active && state.settings.magnifier) updateMagnifier(drag);
     const dropPoint = dragInteractionPoint(drag);
+    const magnifierDrop = !!drag.usingMagnifier;
+    const magnifierCanPlace = !!drag.magnifierTouchesCorrect;
+    const magnifierRadius = drag.magnifierContactRadius || magnifierContactRadius();
 
     document.removeEventListener('pointermove', drag.move);
     document.removeEventListener('pointerup', drag.up);
@@ -729,6 +750,21 @@
     if (!cancelled && drag.active) {
       const stage = activeMapStage(drag.level);
       if (!TMapHints.withinRect(dropPoint.x, dropPoint.y, stage?.getBoundingClientRect())) return;
+
+      if (magnifierDrop) {
+        // With the magnifier on, snapping is deliberately precise: the visible
+        // crosshair circle itself must touch the correct geometry. The former
+        // 24/30px mobile smart radius is not used for the final drop.
+        if (magnifierCanPlace) {
+          state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
+          placeSelected(drag.level);
+        } else {
+          const touched = nearestTargetAt(dropPoint.x, dropPoint.y, drag.level, magnifierRadius);
+          if (touched) attemptPlacement(touched.dataset.regionName, drag.level);
+        }
+        return;
+      }
+
       const result = measureDrop(dropPoint.x, dropPoint.y, drag.level, drag.name, drag.radius, drag.hitRadius);
       if (result.canPlace) {
         state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
@@ -756,6 +792,8 @@
       pointerId: event.pointerId, x: event.clientX, y: event.clientY,
       startX: event.clientX, startY: event.clientY, active: false,
       pointerType: event.pointerType || 'mouse',
+      magnifierTouchesCorrect: false,
+      magnifierContactRadius: magnifierContactRadius(),
       radius: event.pointerType === 'touch' && isMobileLayout() ? (level === 'town' ? 30 : 24) : (event.pointerType === 'touch' ? 24 : 18),
       hitRadius: event.pointerType === 'touch' && isMobileLayout() ? (level === 'town' ? 30 : 24) : 0,
       frame: 0
@@ -776,7 +814,9 @@
         moveGhost(ghost, drag.x, drag.y);
         updateMagnifier(drag);
         const point = dragInteractionPoint(drag);
-        highlightTargetAt(point.x, point.y, name, level, drag.radius, drag.hitRadius);
+        const hoverRadius = drag.usingMagnifier ? drag.magnifierContactRadius : drag.radius;
+        const hoverHitRadius = drag.usingMagnifier ? drag.magnifierContactRadius : drag.hitRadius;
+        highlightTargetAt(point.x, point.y, name, level, hoverRadius, hoverHitRadius);
       });
     };
     drag.up = e => {
@@ -1214,7 +1254,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.4</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.4 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.04.5</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.04.5 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

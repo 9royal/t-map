@@ -1,8 +1,8 @@
 {
   "name": "t-map",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "private": true,
-  "description": "T map v1.04.4 - 放大鏡準星判定修正版",
+  "description": "T map v1.04.5 - 放大鏡準星接觸與吸附修正版",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",

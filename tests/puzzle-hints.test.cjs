@@ -66,13 +66,34 @@ test('correct hint renders on exactly one surface', () => {
 });
 
 
-test('magnifier hint is driven only by the crosshair center region', () => {
-  assert.equal(h.magnifierHintName({centerRegionName:'新店區', selectedName:'新店區', snapHint:true}), '新店區');
-  assert.equal(h.magnifierHintName({centerRegionName:'板橋區', selectedName:'新店區', snapHint:true}), null);
-  assert.equal(h.magnifierHintName({centerRegionName:null, selectedName:'新店區', snapHint:true}), null);
+test('magnifier contact uses the visible crosshair circle, not the label position', () => {
+  const touch = h.magnifierContact({touchesCorrect:true, selectedName:'新店區', snapHint:true});
+  assert.equal(touch.canPlace, true);
+  assert.equal(touch.showCorrectHint, true);
+  assert.equal(touch.hintName, '新店區');
+
+  const miss = h.magnifierContact({touchesCorrect:false, selectedName:'新店區', snapHint:true});
+  assert.equal(miss.canPlace, false);
+  assert.equal(miss.showCorrectHint, false);
+  assert.equal(miss.hintName, null);
 });
 
-test('magnifier hint respects OFF and placed states', () => {
-  assert.equal(h.magnifierHintName({centerRegionName:'新店區', selectedName:'新店區', snapHint:false}), null);
-  assert.equal(h.magnifierHintName({centerRegionName:'新店區', selectedName:'新店區', snapHint:true, placed:true}), null);
+test('magnifier hint and final placement remain aligned even when hint is OFF', () => {
+  const r = h.magnifierContact({touchesCorrect:true, selectedName:'新店區', snapHint:false});
+  assert.equal(r.canPlace, true);
+  assert.equal(r.showCorrectHint, false);
+  assert.equal(r.hintName, null);
+  assert.equal(h.magnifierContact({touchesCorrect:true, selectedName:'新店區', snapHint:true, placed:true}).canPlace, false);
+});
+
+test('crosshair visual radius is converted through magnifier scale', () => {
+  const radius = h.magnifierSourceRadius(8, 2.35);
+  assert.ok(Math.abs(radius - (8 / 2.35)) < 1e-12);
+  assert.ok(radius > 3.4 && radius < 3.5);
+  assert.equal(h.magnifierSourceRadius(8, 0), 0);
+});
+
+test('magnifier hint name follows physical contact only', () => {
+  assert.equal(h.magnifierHintName({touchesCorrect:true, selectedName:'新店區', snapHint:true}), '新店區');
+  assert.equal(h.magnifierHintName({touchesCorrect:false, selectedName:'新店區', snapHint:true}), null);
 });
