@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.1';
+  const VERSION = '1.05.2';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -151,6 +151,55 @@
     return new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
   }
 
+  function pointInsideTarget(path, clientX, clientY) {
+    if (!path || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
+    const svg = path.ownerSVGElement;
+    const feature = path.__data__;
+    const projection = svg?.__tmapProjection;
+
+    // Primary test: convert the screen point back into the GeoJSON coordinate
+    // system and use d3.geoContains. This does not depend on browser SVG
+    // hit-testing and therefore stays reliable on iOS/WebKit and inset maps.
+    if (svg && feature && projection?.invert && window.d3?.geoContains) {
+      const local = clientToSvgPoint(svg, clientX, clientY);
+      const lonLat = local ? projection.invert([local.x, local.y]) : null;
+      if (Array.isArray(lonLat) && lonLat.length >= 2 && lonLat.every(Number.isFinite)) {
+        try {
+          if (d3.geoContains(feature, lonLat)) return true;
+        } catch (_) { /* fall through to SVG fill test */ }
+      }
+    }
+
+    // Secondary browser-native fill test for paths not created by renderTargetSvg.
+    const matrix = path.getScreenCTM?.();
+    if (!matrix || typeof path.isPointInFill !== 'function') return false;
+    try {
+      const local = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+      return !!path.isPointInFill(local);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function crosshairTouchesTarget(path, clientX, clientY, radius) {
+    if (!path || !Number.isFinite(radius) || radius < 0) return false;
+    if (pointInsideTarget(path, clientX, clientY)) return true;
+
+    // The visible crosshair is a circle, not a single point. Sample its rim so
+    // overlap remains true after entering a polygon and for small island insets.
+    const samples = 16;
+    for (let i = 0; i < samples; i++) {
+      const angle = i * Math.PI * 2 / samples;
+      const x = clientX + Math.cos(angle) * radius;
+      const y = clientY + Math.sin(angle) * radius;
+      if (pointInsideTarget(path, x, y)) return true;
+    }
+
+    // Tangential contact can fall between sample points; retain a very small
+    // boundary-distance fallback equal to the visible circle radius only.
+    return TMapHints.geometryDistance(path, clientX, clientY, radius + 0.5) <= radius + 0.5;
+  }
+
   function zoomMap(svg, factor, clientX = null, clientY = null) {
     const mapState = getMapState(svg);
     const current = currentViewBox(svg);
@@ -175,7 +224,9 @@
     let best = null;
     let bestDistance = Infinity;
     root.querySelectorAll(`.target-region[data-level="${level}"]:not(.is-placed)`).forEach(path => {
-      const distance = TMapHints.geometryDistance(path, x, y, radius);
+      const distance = pointInsideTarget(path, x, y)
+        ? 0
+        : TMapHints.geometryDistance(path, x, y, radius);
       if (distance <= radius && distance < bestDistance) {
         best = path;
         bestDistance = distance;
@@ -236,24 +287,12 @@
   }
 
   function magnifierContactDecision(drag) {
-    const correct = correctTargetPath(drag?.name, drag?.level);
-    const placed = !!correct?.classList.contains('is-placed');
     const hasAim = Number.isFinite(drag?.aimX) && Number.isFinite(drag?.aimY);
+    const correct = correctTargetPath(drag?.name, drag?.level, drag?.aimX, drag?.aimY);
+    const placed = !!correct?.classList.contains('is-placed');
     const radius = magnifierContactRadius();
-    let touchesCorrect = false;
-    if (correct && !placed && hasAim) {
-      // The visible crosshair circle counts as touching when its centre is inside
-      // the correct SVG region OR its edge reaches that region's boundary.
-      // Browser hit-testing is used for the interior so Safari/WebKit and island
-      // inset SVGs do not depend on SVGPathElement.isPointInFill support.
-      const centerHit = hitRegionAt(drag.aimX, drag.aimY, drag.level) === correct;
-      const boundaryDistance = TMapHints.geometryDistance(correct, drag.aimX, drag.aimY, radius);
-      touchesCorrect = TMapHints.crosshairCircleContact({
-        centerInside: centerHit,
-        boundaryDistance,
-        radius
-      });
-    }
+    const touchesCorrect = !!(correct && !placed && hasAim &&
+      crosshairTouchesTarget(correct, drag.aimX, drag.aimY, radius));
     return TMapHints.magnifierContact({
       touchesCorrect,
       selectedName: drag?.name || null,
@@ -705,21 +744,50 @@
       const el = node?.closest?.('.target-region');
       if (el && el.dataset.level === level && screen?.contains(el)) return el;
     }
+
+    // iOS/WebKit may fail to return the interior SVG path while a pointer is
+    // captured by the dragged piece. Fall back to geographic containment.
+    const candidates = screen?.querySelectorAll?.(`.target-region[data-level="${level}"]`) || [];
+    for (const path of candidates) {
+      if (pointInsideTarget(path, x, y)) return path;
+    }
     return null;
   }
 
-  function correctTargetPath(name, level) {
-    return $$('.target-region').find(el =>
-      el.dataset.level === level && el.dataset.regionName === name &&
-      (level === 'town' ? $('#town-map').contains(el) : $('#taiwan-map-stage').contains(el))) || null;
+  function correctTargetPaths(name, level) {
+    const root = level === 'town' ? $('#town-map') : $('#taiwan-map-stage');
+    if (!root) return [];
+    return Array.from(root.querySelectorAll(`.target-region[data-level="${level}"]`))
+      .filter(el => el.dataset.regionName === name);
+  }
+
+  function correctTargetPath(name, level, x = null, y = null) {
+    const paths = correctTargetPaths(name, level);
+    if (!paths.length) return null;
+    if (Number.isFinite(x) && Number.isFinite(y)) {
+      const inside = paths.find(path => pointInsideTarget(path, x, y));
+      if (inside) return inside;
+      let best = paths[0];
+      let bestDistance = Infinity;
+      paths.forEach(path => {
+        const distance = TMapHints.geometryDistance(path, x, y, Infinity);
+        if (distance < bestDistance) {
+          best = path;
+          bestDistance = distance;
+        }
+      });
+      return best;
+    }
+    return paths[0];
   }
 
   function measureDrop(x, y, level, name, radius = 18, hitRadius = 0) {
     let hovered = hitRegionAt(x, y, level);
     if (!hovered && hitRadius > 0) hovered = nearestTargetAt(x, y, level, hitRadius);
-    const correct = correctTargetPath(name, level);
+    const correct = correctTargetPath(name, level, x, y);
+    const correctInside = !!(correct && pointInsideTarget(correct, x, y));
     const nearCorrect = correct && !correct.classList.contains('is-placed') &&
-      TMapHints.geometryProximity(correct, x, y, radius);
+      (correctInside || TMapHints.geometryProximity(correct, x, y, radius));
     return { ...TMapHints.classify({
         hoveredName: hovered?.dataset.regionName,
         selectedName: name,
@@ -942,6 +1010,7 @@
     const svg = d3.select(svgEl);
     svg.selectAll('*').remove();
     const projection = createProjection(features, width, height, 18);
+    svgEl.__tmapProjection = projection;
     const path = d3.geoPath(projection);
     svg.selectAll('path.target-region')
       .data(features)
@@ -1370,7 +1439,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.1</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.1 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.2</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.2 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

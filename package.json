@@ -1,8 +1,8 @@
 {
   "name": "t-map",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "private": true,
-  "description": "T map v1.05.1 - 多地圖平台臺灣提示與放大鏡修正版",
+  "description": "T map v1.05.2 - 多地圖平台臺灣提示與放大鏡修正版",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",
