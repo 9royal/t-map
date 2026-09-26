@@ -1,4 +1,26 @@
-# T map v1.05.2 測試紀錄
+# T map v1.05.3 測試紀錄
+
+## 本版新增
+
+- 平面 Polygon 內部命中：邊界、中央、接近邊界的內部點都必須維持 `true`。
+- Polygon hole：洞內不得被判定為行政區。
+- MultiPolygon：不同島塊內部都必須可命中，島與島之間不得誤判。
+- 平面邊界距離：供放大鏡小圓圈精準接觸判定。
+- app 整合檢查：每個 target path 必須保存 `__tmapProjectedGeometry`，且主要內部判定使用 `planarContains()`。
+- 隱藏診斷模式：`?hitdebug=1` 必須能顯示中心在內、正確 SVG、邊界距離等資訊。
+
+## 自動測試
+
+`node --test tests/*.test.cjs`：40 / 40 通過。
+
+## 實機驗收
+
+1. 一般模式：將拼圖文字／指標從正確行政區邊界移到中央，黃色提示全程不可消失。
+2. 放大鏡模式：準星小圓圈由邊界進入正確行政區中央，放大鏡內黃色提示全程不可消失，放開可吸附。
+3. 澎湖、金門、連江：一般與放大鏡模式都要能提示並放置。
+4. 若任一項失敗，用同一 Preview 網址加 `?hitdebug=1`，截圖診斷面板後再修，不再盲猜。
+
+## 既有回歸測試
 
 ## 1. Node 單元測試
 
@@ -8,7 +30,7 @@
 npm test
 ```
 
-結果：**35 / 35 通過**。
+結果：**40 / 40 通過**。
 
 涵蓋：
 
@@ -19,7 +41,7 @@ npm test
 - 世界第二層依洲分組與小國 `playable` 政策。
 - 共用 map engine 的進度、區域標準化、可玩區域過濾、分組、多語名稱。
 - v1.04.x 原有 mobile-map、puzzle-hints、speech profiles 測試。
-- v1.05.2 另檢查 `svgEl.__tmapProjection`、`d3.geoContains()` 與放大鏡共用接觸判定是否實際接入 `app.js`。
+- v1.05.3 另檢查 `svgEl.__tmapProjection`、`d3.geoContains()` 與放大鏡共用接觸判定是否實際接入 `app.js`。
 
 ## 2. 建置／驗證 smoke test
 
@@ -35,7 +57,7 @@ node scripts/verify.mjs
 - 部署檔案完整。
 - `map-registry.js`、`map-engine.js` 已進入 `dist/js/`。
 - 22 縣市／368 鄉鎮市區計數檢查。
-- v1.05.2 版本與平台 metadata 一致。
+- v1.05.3 版本與平台 metadata 一致。
 - 無外部 CDN JS/JSON 執行期依賴。
 
 這項 smoke test **不是正式 D3／TopoJSON／taiwan-atlas 實際繪圖驗收**。正式發布前仍須由 Cloudflare Preview 使用真實 npm 套件建置。
@@ -52,14 +74,14 @@ node scripts/verify.mjs
 8. 深淺色主題在平台首頁與臺灣模組都正常。
 9. 臺灣國語／台語設定仍可使用；English profile 此版僅供未來世界模組使用，不應出現在臺灣設定中。
 
-## v1.05.2 新增回歸測試
+## v1.05.3 新增回歸測試
 
 - 正確行政區內部命中且 `nearCorrect=false` 時，正確提示仍必須亮起。
 - 提示 OFF 時，內部命中仍可放置但不可洩漏答案。
 - 放大鏡準星中心進入正確區域後，接觸判定必須保持 true。
 - 準星圓圈邊緣 3.4px 接觸與超出範圍的 miss 必須可區分。
 
-## v1.05.2 實機重點
+## v1.05.3 實機重點
 
 1. 一般拖曳：指標從正確行政區邊線移到區域中央，黃色提示必須全程持續。
 2. 放大鏡：準星小圓圈從邊線進入正確區域中央，黃色提示不得消失，放開可吸附。

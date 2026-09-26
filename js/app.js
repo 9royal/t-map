@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.2';
+  const VERSION = '1.05.3';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -35,6 +35,31 @@
   const MAGNIFIER_CROSSHAIR_OUTER_RADIUS = 8;
   const mobileMapStates = new WeakMap();
   let magnifier = null;
+  const HIT_DEBUG = typeof location !== 'undefined' && new URLSearchParams(location.search).get('hitdebug') === '1';
+  let hitDebugEl = null;
+
+  function updateHitDebug(info = {}) {
+    if (!HIT_DEBUG || typeof document === 'undefined') return;
+    if (!hitDebugEl) {
+      hitDebugEl = document.createElement('pre');
+      hitDebugEl.id = 'hit-debug';
+      hitDebugEl.style.cssText = 'position:fixed;z-index:9999;left:8px;top:8px;max-width:calc(100vw - 16px);margin:0;padding:8px 10px;border-radius:8px;background:rgba(0,0,0,.82);color:#fff;font:12px/1.35 ui-monospace,SFMono-Regular,Consolas,monospace;pointer-events:none;white-space:pre-wrap';
+      document.body.append(hitDebugEl);
+    }
+    const r = info.result || {};
+    const distance = Number.isFinite(r.correctDistance) ? r.correctDistance.toFixed(2) : '∞';
+    hitDebugEl.textContent = [
+      `模式: ${info.magnifier ? '放大鏡' : '一般'}`,
+      `選取: ${info.name || '-'}`,
+      `座標: ${Number(info.x).toFixed(1)}, ${Number(info.y).toFixed(1)}`,
+      `正確SVG: ${r.correct?.ownerSVGElement?.id || '-'}`,
+      `中心在內: ${!!r.correctInside}`,
+      `邊界距離(px): ${distance}`,
+      `nearCorrect: ${!!r.nearCorrect}`,
+      `showHint: ${!!r.showCorrectHint}`,
+      `hovered: ${r.hovered?.dataset?.regionName || '-'}`
+    ].join('\n');
+  }
 
   function isMobileLayout() {
     return window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`).matches;
@@ -145,59 +170,109 @@
     mapState.lastPoint = null;
   }
 
+  function svgViewportMetrics(svg) {
+    const rect = svg?.getBoundingClientRect?.();
+    const vb = svg?.viewBox?.baseVal;
+    if (!rect || !vb || !rect.width || !rect.height || !vb.width || !vb.height) return null;
+    // All puzzle maps use the SVG default preserveAspectRatio="xMidYMid meet".
+    // Computing this explicitly avoids iOS/WebKit getScreenCTM/isPointInFill quirks.
+    const scale = Math.min(rect.width / vb.width, rect.height / vb.height);
+    const contentWidth = vb.width * scale;
+    const contentHeight = vb.height * scale;
+    return {
+      rect, vb, scale,
+      offsetX: (rect.width - contentWidth) / 2,
+      offsetY: (rect.height - contentHeight) / 2
+    };
+  }
+
   function clientToSvgPoint(svg, clientX, clientY) {
+    const metrics = svgViewportMetrics(svg);
+    if (metrics) {
+      const { rect, vb, scale, offsetX, offsetY } = metrics;
+      return {
+        x: vb.x + (clientX - rect.left - offsetX) / scale,
+        y: vb.y + (clientY - rect.top - offsetY) / scale
+      };
+    }
     const matrix = svg?.getScreenCTM?.();
-    if (!matrix) return null;
-    return new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+    if (!matrix || typeof DOMPoint === 'undefined') return null;
+    try {
+      return new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function projectFeatureGeometry(feature, projection) {
+    const geometry = feature?.geometry;
+    if (!geometry || !projection) return null;
+    const projectPoint = point => {
+      if (!Array.isArray(point) || point.length < 2) return null;
+      const projected = projection(point);
+      return Array.isArray(projected) && projected.length >= 2 && projected.every(Number.isFinite)
+        ? [projected[0], projected[1]] : null;
+    };
+    const projectRing = ring => (ring || []).map(projectPoint).filter(Boolean);
+    if (geometry.type === 'Polygon') {
+      return { type: 'Polygon', coordinates: (geometry.coordinates || []).map(projectRing) };
+    }
+    if (geometry.type === 'MultiPolygon') {
+      return {
+        type: 'MultiPolygon',
+        coordinates: (geometry.coordinates || []).map(poly => (poly || []).map(projectRing))
+      };
+    }
+    return null;
+  }
+
+  function projectedBoundaryDistance(path, clientX, clientY) {
+    const svg = path?.ownerSVGElement;
+    const geometry = path?.__tmapProjectedGeometry;
+    const local = clientToSvgPoint(svg, clientX, clientY);
+    const metrics = svgViewportMetrics(svg);
+    if (!geometry || !local || !metrics || !window.TMapHints?.planarBoundaryDistance) return Infinity;
+    const localDistance = TMapHints.planarBoundaryDistance(geometry, local.x, local.y);
+    return Number.isFinite(localDistance) ? localDistance * metrics.scale : Infinity;
   }
 
   function pointInsideTarget(path, clientX, clientY) {
     if (!path || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
     const svg = path.ownerSVGElement;
-    const feature = path.__data__;
-    const projection = svg?.__tmapProjection;
+    const projectedGeometry = path.__tmapProjectedGeometry;
+    const local = clientToSvgPoint(svg, clientX, clientY);
 
-    // Primary test: convert the screen point back into the GeoJSON coordinate
-    // system and use d3.geoContains. This does not depend on browser SVG
-    // hit-testing and therefore stays reliable on iOS/WebKit and inset maps.
-    if (svg && feature && projection?.invert && window.d3?.geoContains) {
-      const local = clientToSvgPoint(svg, clientX, clientY);
-      const lonLat = local ? projection.invert([local.x, local.y]) : null;
-      if (Array.isArray(lonLat) && lonLat.length >= 2 && lonLat.every(Number.isFinite)) {
-        try {
-          if (d3.geoContains(feature, lonLat)) return true;
-        } catch (_) { /* fall through to SVG fill test */ }
-      }
+    // Primary test: use the exact geometry that was projected to draw this SVG.
+    // This is planar, ring-orientation independent, and works identically for
+    // the main map and the Penghu/Kinmen/Lienchiang inset SVGs.
+    if (projectedGeometry && local && window.TMapHints?.planarContains) {
+      if (TMapHints.planarContains(projectedGeometry, local.x, local.y)) return true;
+      return false;
     }
 
-    // Secondary browser-native fill test for paths not created by renderTargetSvg.
+    // Last-resort browser-native fill test for any path not produced by our renderer.
     const matrix = path.getScreenCTM?.();
-    if (!matrix || typeof path.isPointInFill !== 'function') return false;
+    if (!matrix || typeof path.isPointInFill !== 'function' || typeof DOMPoint === 'undefined') return false;
     try {
-      const local = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
-      return !!path.isPointInFill(local);
+      const fallbackLocal = new DOMPoint(clientX, clientY).matrixTransform(matrix.inverse());
+      return !!path.isPointInFill(fallbackLocal);
     } catch (_) {
       return false;
     }
   }
 
+  function targetBoundaryDistance(path, clientX, clientY, maxRadius = Infinity) {
+    const projected = projectedBoundaryDistance(path, clientX, clientY);
+    if (Number.isFinite(projected)) return projected;
+    return TMapHints.geometryDistance(path, clientX, clientY, maxRadius);
+  }
+
   function crosshairTouchesTarget(path, clientX, clientY, radius) {
     if (!path || !Number.isFinite(radius) || radius < 0) return false;
     if (pointInsideTarget(path, clientX, clientY)) return true;
-
-    // The visible crosshair is a circle, not a single point. Sample its rim so
-    // overlap remains true after entering a polygon and for small island insets.
-    const samples = 16;
-    for (let i = 0; i < samples; i++) {
-      const angle = i * Math.PI * 2 / samples;
-      const x = clientX + Math.cos(angle) * radius;
-      const y = clientY + Math.sin(angle) * radius;
-      if (pointInsideTarget(path, x, y)) return true;
-    }
-
-    // Tangential contact can fall between sample points; retain a very small
-    // boundary-distance fallback equal to the visible circle radius only.
-    return TMapHints.geometryDistance(path, clientX, clientY, radius + 0.5) <= radius + 0.5;
+    // Exact screen-space circle/polygon contact: once the centre leaves the
+    // polygon, the visible circle still counts while its rim touches the border.
+    return targetBoundaryDistance(path, clientX, clientY, radius + 0.5) <= radius + 0.5;
   }
 
   function zoomMap(svg, factor, clientX = null, clientY = null) {
@@ -226,7 +301,7 @@
     root.querySelectorAll(`.target-region[data-level="${level}"]:not(.is-placed)`).forEach(path => {
       const distance = pointInsideTarget(path, x, y)
         ? 0
-        : TMapHints.geometryDistance(path, x, y, radius);
+        : targetBoundaryDistance(path, x, y, radius);
       if (distance <= radius && distance < bestDistance) {
         best = path;
         bestDistance = distance;
@@ -770,7 +845,7 @@
       let best = paths[0];
       let bestDistance = Infinity;
       paths.forEach(path => {
-        const distance = TMapHints.geometryDistance(path, x, y, Infinity);
+        const distance = targetBoundaryDistance(path, x, y, Infinity);
         if (distance < bestDistance) {
           best = path;
           bestDistance = distance;
@@ -786,15 +861,16 @@
     if (!hovered && hitRadius > 0) hovered = nearestTargetAt(x, y, level, hitRadius);
     const correct = correctTargetPath(name, level, x, y);
     const correctInside = !!(correct && pointInsideTarget(correct, x, y));
+    const correctDistance = correct ? targetBoundaryDistance(correct, x, y, radius) : Infinity;
     const nearCorrect = correct && !correct.classList.contains('is-placed') &&
-      (correctInside || TMapHints.geometryProximity(correct, x, y, radius));
+      (correctInside || correctDistance <= radius);
     return { ...TMapHints.classify({
         hoveredName: hovered?.dataset.regionName,
         selectedName: name,
         nearCorrect,
         snapHint: state.settings.snapHint,
         placed: !!hovered?.classList.contains('is-placed')
-      }), hovered, correct, nearCorrect: !!nearCorrect };
+      }), hovered, correct, correctInside, correctDistance, nearCorrect: !!nearCorrect };
   }
 
   function highlightTargetAt(x, y, name, level, radius, hitRadius = 0) {
@@ -804,6 +880,7 @@
     if (state.drag?.ghost) state.drag.ghost.classList.toggle('is-over-map', overMap);
     if (!overMap) return null;
     const result = measureDrop(x, y, level, name, radius, hitRadius);
+    updateHitDebug({ x, y, name, result, magnifier: !!state.drag?.usingMagnifier });
     if (result.hovered && !result.hovered.classList.contains('is-placed')) {
       result.hovered.classList.add('is-hovered');
     }
@@ -1025,6 +1102,7 @@
       .attr('aria-label', f => level === 'county' ? countyName(f) : townName(f))
       .attr('data-region-name', f => level === 'county' ? countyName(f) : townName(f))
       .attr('data-level', level)
+      .each(function(f) { this.__tmapProjectedGeometry = projectFeatureGeometry(f, projection); })
       .on('pointerenter', function() {
         if (!state.drag && !this.classList.contains('is-placed')) this.classList.add('is-hovered');
       })
@@ -1439,7 +1517,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.2</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.2 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.3</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.3 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

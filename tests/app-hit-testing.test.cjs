@@ -5,17 +5,31 @@ const path = require('node:path');
 
 const app = fs.readFileSync(path.join(__dirname, '..', 'js', 'app.js'), 'utf8');
 
-test('rendered target maps retain their geographic projection for browser-independent interior hit testing', () => {
-  assert.match(app, /svgEl\.__tmapProjection\s*=\s*projection/);
-  assert.match(app, /d3\.geoContains\(feature,\s*lonLat\)/);
+test('rendered target paths cache their exact projected polygon geometry', () => {
+  assert.match(app, /__tmapProjectedGeometry\s*=\s*projectFeatureGeometry\(f,\s*projection\)/);
+  assert.match(app, /TMapHints\.planarContains\(projectedGeometry,\s*local\.x,\s*local\.y\)/);
+  assert.doesNotMatch(app, /d3\.geoContains\(feature,\s*lonLat\)/);
 });
 
-test('drag hit testing falls back to geographic containment instead of boundary-only proximity', () => {
-  assert.match(app, /pointInsideTarget\(path,\s*x,\s*y\)/);
-  assert.match(app, /correctInside\s*\|\|\s*TMapHints\.geometryProximity/);
+test('screen to SVG conversion uses viewBox metrics before browser CTM fallback', () => {
+  assert.match(app, /function svgViewportMetrics\(svg\)/);
+  assert.match(app, /Math\.min\(rect\.width \/ vb\.width, rect\.height \/ vb\.height\)/);
+  assert.match(app, /clientX - rect\.left - offsetX/);
 });
 
-test('magnifier hint and snap use the same visible crosshair contact rule', () => {
+test('inside and edge distance share projected geometry for main map and island insets', () => {
+  assert.match(app, /function projectedBoundaryDistance/);
+  assert.match(app, /TMapHints\.planarBoundaryDistance\(geometry,\s*local\.x,\s*local\.y\)/);
+  assert.match(app, /correctInside \|\| correctDistance <= radius/);
+});
+
+test('magnifier hint and final snap share the same crosshair circle contact rule', () => {
   assert.match(app, /crosshairTouchesTarget\(correct,\s*drag\.aimX,\s*drag\.aimY,\s*radius\)/);
-  assert.doesNotMatch(app, /const centerHit\s*=\s*hitRegionAt\(drag\.aimX,\s*drag\.aimY/);
+  assert.match(app, /const magnifierCanPlace = !!drag\.magnifierTouchesCorrect/);
+});
+
+test('optional hit diagnostics can be enabled without changing normal UI', () => {
+  assert.match(app, /get\('hitdebug'\) === '1'/);
+  assert.match(app, /中心在內:/);
+  assert.match(app, /正確SVG:/);
 });

@@ -40,6 +40,72 @@
     return best;
   }
 
+
+
+  function pointOnSegment2D(x, y, ax, ay, bx, by, epsilon = 1e-7) {
+    return distanceToSegment(x, y, ax, ay, bx, by) <= epsilon;
+  }
+
+  function pointInRing2D(x, y, ring) {
+    if (!Array.isArray(ring) || ring.length < 3) return false;
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const a = ring[j], b = ring[i];
+      if (!Array.isArray(a) || !Array.isArray(b)) continue;
+      const ax = Number(a[0]), ay = Number(a[1]);
+      const bx = Number(b[0]), by = Number(b[1]);
+      if (![ax, ay, bx, by].every(Number.isFinite)) continue;
+      if (pointOnSegment2D(x, y, ax, ay, bx, by)) return true;
+      const crosses = (ay > y) !== (by > y);
+      if (!crosses) continue;
+      const xAtY = ax + (y - ay) * (bx - ax) / (by - ay);
+      if (x < xAtY) inside = !inside;
+    }
+    return inside;
+  }
+
+  function pointInPolygon2D(x, y, rings) {
+    if (!Array.isArray(rings) || !rings.length || !pointInRing2D(x, y, rings[0])) return false;
+    for (let i = 1; i < rings.length; i++) {
+      if (pointInRing2D(x, y, rings[i])) return false;
+    }
+    return true;
+  }
+
+  function planarContains(geometry, x, y) {
+    if (!geometry || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+    if (geometry.type === 'Polygon') return pointInPolygon2D(x, y, geometry.coordinates);
+    if (geometry.type === 'MultiPolygon') {
+      return Array.isArray(geometry.coordinates) && geometry.coordinates.some(poly => pointInPolygon2D(x, y, poly));
+    }
+    return false;
+  }
+
+  function ringBoundaryDistance2D(x, y, ring) {
+    if (!Array.isArray(ring) || ring.length < 2) return Infinity;
+    let best = Infinity;
+    for (let i = 0; i < ring.length; i++) {
+      const a = ring[i], b = ring[(i + 1) % ring.length];
+      if (!Array.isArray(a) || !Array.isArray(b)) continue;
+      const ax = Number(a[0]), ay = Number(a[1]);
+      const bx = Number(b[0]), by = Number(b[1]);
+      if (![ax, ay, bx, by].every(Number.isFinite)) continue;
+      best = Math.min(best, distanceToSegment(x, y, ax, ay, bx, by));
+    }
+    return best;
+  }
+
+  function planarBoundaryDistance(geometry, x, y) {
+    if (!geometry || !Number.isFinite(x) || !Number.isFinite(y)) return Infinity;
+    const polygons = geometry.type === 'Polygon' ? [geometry.coordinates]
+      : geometry.type === 'MultiPolygon' ? geometry.coordinates : [];
+    let best = Infinity;
+    for (const poly of polygons || []) {
+      for (const ring of poly || []) best = Math.min(best, ringBoundaryDistance2D(x, y, ring));
+    }
+    return best;
+  }
+
   function geometryDistance(path, x, y, maxRadius = Infinity) {
     if (!path || !path.getScreenCTM) return Infinity;
     const matrix = path.getScreenCTM();
@@ -108,5 +174,5 @@
     return magnifierContact(options).hintName;
   }
 
-  return { withinRect, classify, distanceToSegment, distanceToPolyline, geometryDistance, geometryProximity, correctHintSurface, magnifierSourceRadius, crosshairCircleContact, magnifierContact, magnifierHintName };
+  return { withinRect, classify, distanceToSegment, distanceToPolyline, pointInRing2D, pointInPolygon2D, planarContains, planarBoundaryDistance, geometryDistance, geometryProximity, correctHintSurface, magnifierSourceRadius, crosshairCircleContact, magnifierContact, magnifierHintName };
 });

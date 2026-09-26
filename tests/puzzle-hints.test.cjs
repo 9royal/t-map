@@ -89,3 +89,32 @@ test('magnifier circle edge contact and miss are distinguished precisely', () =>
   assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:3.3, radius:3.4}), true);
   assert.equal(h.crosshairCircleContact({centerInside:false, boundaryDistance:3.5, radius:3.4}), false);
 });
+
+test('planar containment stays true throughout a polygon interior and includes its border', () => {
+  const square = { type:'Polygon', coordinates:[[[0,0],[10,0],[10,10],[0,10],[0,0]]] };
+  assert.equal(h.planarContains(square, 0, 5), true);
+  assert.equal(h.planarContains(square, 5, 5), true);
+  assert.equal(h.planarContains(square, 9.9, 5), true);
+  assert.equal(h.planarContains(square, 12, 5), false);
+});
+
+test('planar containment supports holes without relying on ring winding', () => {
+  const donut = { type:'Polygon', coordinates:[
+    [[0,0],[10,0],[10,10],[0,10],[0,0]],
+    [[3,3],[3,7],[7,7],[7,3],[3,3]]
+  ] };
+  assert.equal(h.planarContains(donut, 1, 1), true);
+  assert.equal(h.planarContains(donut, 5, 5), false);
+});
+
+test('planar containment and boundary distance support MultiPolygon island geometry', () => {
+  const islands = { type:'MultiPolygon', coordinates:[
+    [[[0,0],[2,0],[2,2],[0,2],[0,0]]],
+    [[[10,10],[14,10],[14,14],[10,14],[10,10]]]
+  ] };
+  assert.equal(h.planarContains(islands, 1, 1), true);
+  assert.equal(h.planarContains(islands, 12, 12), true);
+  assert.equal(h.planarContains(islands, 6, 6), false);
+  assert.equal(h.planarBoundaryDistance(islands, 12, 12), 2);
+  assert.equal(h.planarBoundaryDistance(islands, 15, 12), 1);
+});
