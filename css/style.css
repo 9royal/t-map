@@ -626,3 +626,19 @@ html[data-theme="dark"] {
   .map-catalog-mark { grid-row: auto; width: 62px; height: 62px; border-radius: 18px; font-size: 1.35rem; }
   .map-catalog-actions { grid-column: auto; }
 }
+
+/* v1.05.3 hotfix: the correct-answer hint must always outrank
+   ordinary hover/contact feedback, including mobile and magnifier clones. */
+.target-region.is-near:not(.is-placed),
+.target-region.is-near.is-hovered:not(.is-placed),
+.target-region.is-near:not(.is-placed):hover,
+.map-magnifier .target-region.is-near:not(.is-placed),
+.map-magnifier .target-region.is-near.is-hovered:not(.is-placed) {
+  fill: var(--hint-fill);
+  stroke: var(--hint-stroke);
+  stroke-width: 3.5;
+  paint-order: stroke fill;
+  filter: drop-shadow(0 0 4px var(--hint-glow))
+          drop-shadow(0 0 8px var(--hint-glow));
+}
+
