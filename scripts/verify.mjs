@@ -72,7 +72,8 @@ if (pkg.version !== '1.5.3' || version !== 'T map v1.05.3' || info.version !== '
     !helper.includes('geometryDistance') || !mobile.includes('magnifierGeometry') ||
     !speech.includes('taiwanese') || !speech.includes('english') || !speech.includes('modesForMap') ||
     !helper.includes('correctHintSurface') || !app.includes('applyMagnifierCorrectHint') ||
-    !app.includes('svgEl.__tmapProjection = projection') || !app.includes('d3.geoContains(feature, lonLat)') ||
+    !app.includes('svgEl.__tmapProjection = projection') || !app.includes('__tmapProjectedGeometry') ||
+    !app.includes('TMapHints.planarContains(projectedGeometry, local.x, local.y)') ||
     !app.includes('crosshairTouchesTarget(correct, drag.aimX, drag.aimY, radius)') ||
     !html.includes('style.css?v=1.05.3') || !html.includes('app.js?v=1.05.3')) {
   throw new Error('v1.05.3 版本或多地圖平台資訊不一致。');
