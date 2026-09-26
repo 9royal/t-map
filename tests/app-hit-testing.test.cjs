@@ -33,3 +33,11 @@ test('optional hit diagnostics can be enabled without changing normal UI', () =>
   assert.match(app, /中心在內:/);
   assert.match(app, /正確SVG:/);
 });
+
+test('China SVG paths use Path2D interior hit testing and the shared drag pipeline', () => {
+  assert.match(app, /__tmapPath2D\s*=\s*new Path2D\(location\.d\)/);
+  assert.match(app, /ctx\?\.isPointInPath\(path\.__tmapPath2D,\s*local\.x,\s*local\.y,\s*'evenodd'\)/);
+  assert.match(app, /beginDrag\(event,\s*location,\s*'china-province'/);
+  assert.match(app, /renderChinaTargetPath\(\$\('#inset-hong-kong'\)/);
+  assert.match(app, /renderChinaTargetPath\(\$\('#inset-macau'\)/);
+});

@@ -7,9 +7,11 @@ test('registry has unique ids', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('Taiwan is the only ready module in v1.05 foundation', () => {
-  assert.deepEqual(registry.readyMaps().map(m => m.id), ['taiwan']);
+test('Taiwan and China are ready modules in v1.05.4', () => {
+  assert.deepEqual(registry.readyMaps().map(m => m.id), ['taiwan', 'china-provincial']);
   assert.equal(registry.isReady('taiwan'), true);
+  assert.equal(registry.isReady('china-provincial'), true);
+  assert.equal(registry.isReady('world'), false);
 });
 
 test('Taiwan retains two puzzle levels and existing counts', () => {
@@ -19,10 +21,12 @@ test('Taiwan retains two puzzle levels and existing counts', () => {
   assert.deepEqual(taiwan.speechModes, ['mandarin', 'taiwanese']);
 });
 
-test('China project scope is stored as planned 33-piece module', () => {
+test('China project scope is a ready 33-piece module', () => {
   const china = registry.getMap('china-provincial');
-  assert.equal(china.status, 'planned');
-  assert.equal(china.levels[0].plannedPieceCount, 33);
+  assert.equal(china.status, 'ready');
+  assert.equal(china.levels[0].pieceCount, 33);
+  assert.equal(china.levels[0].type, 'svg-path-puzzle');
+  assert.deepEqual(china.speechModes, ['mandarin']);
 });
 
 test('World first level contains seven continents and four oceans', () => {

@@ -21,14 +21,14 @@
     }),
     Object.freeze({
       id: 'china-provincial',
-      status: 'planned',
+      status: 'ready',
       mark: 'CN',
       title: '中國大陸省級行政區＋香港、澳門',
-      subtitle: '預定 33 塊',
-      description: '本專案規劃中國大陸省級行政區加上香港、澳門；臺灣維持在獨立模組，不在此關重複出題。',
+      subtitle: '33 塊',
+      description: '中國大陸省級行政區加上香港、澳門，共 33 塊；臺灣維持在獨立模組，不在此關重複出題。',
       speechModes: Object.freeze(['mandarin']),
       levels: Object.freeze([
-        Object.freeze({ id: 'provincial', title: '省級行政區＋港澳', type: 'polygon-puzzle', plannedPieceCount: 33 })
+        Object.freeze({ id: 'provincial', title: '省級行政區＋港澳', type: 'svg-path-puzzle', pieceCount: 33 })
       ])
     }),
     Object.freeze({

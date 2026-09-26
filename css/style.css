@@ -642,3 +642,18 @@ html[data-theme="dark"] {
           drop-shadow(0 0 8px var(--hint-glow));
 }
 
+
+/* v1.05.4: China provincial-level puzzle. */
+.china-stage { display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px; align-items: stretch; }
+.china-inset-grid { display: grid; gap: 10px; }
+.china-inset-name[hidden] { display: none !important; }
+#china-main-map .map-label { font-size: 9px; }
+@media (max-width: 900px) {
+  .china-stage { grid-template-columns: 1fr; }
+  .china-inset-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 640px) {
+  .china-stage { display: block; }
+  .china-inset-grid { display: flex; overflow-x: auto; gap: 8px; padding: 8px 0 3px; scroll-snap-type: x proximity; touch-action: pan-x pan-y; overscroll-behavior-x: contain; }
+  .china-inset-grid .island-box { min-width: 164px; scroll-snap-align: start; }
+}

@@ -1,10 +1,11 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.3';
+  const VERSION = '1.05.4';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
+  const CHINA_URL = 'data/china-provinces.json';
   const ISLANDS = new Set(['澎湖縣', '金門縣', '連江縣']);
   const REGION_MAP = {
     '基隆市':'north','臺北市':'north','新北市':'north','桃園市':'north','新竹市':'north','新竹縣':'north','宜蘭縣':'north',
@@ -16,19 +17,20 @@
 
   const state = {
     settings: { speech: true, speechMode: 'mandarin', labels: true, snapHint: true, magnifier: true, effects: true, theme: 'light' },
-    progress: { taiwan: [], towns: {} },
+    progress: { taiwan: [], towns: {}, chinaProvincial: [] },
     last: { screen: 'home', county: null },
-    data: { counties: [], towns: [] },
+    data: { counties: [], towns: [], china: null },
     selected: null,
     currentCounty: null,
     drag: null
   };
 
-  const screens = ['catalog','home','taiwan','complete','explorer','town'];
+  const screens = ['catalog','home','taiwan','complete','explorer','town','china'];
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   let audioContext = null;
   let taiwanDataPromise = null;
+  let chinaDataPromise = null;
   const MOBILE_BREAKPOINT = 640;
   const MAGNIFIER_SCALE = 2.35;
   // CSS crosshair: 12px content + 2px border on each side = 16px outer diameter.
@@ -68,14 +70,14 @@
 
   function syncMobilePuzzleClass() {
     const active = $('.screen.is-active')?.id;
-    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town'));
+    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town' || active === 'screen-china'));
   }
 
   function setSelectedDisplay(level, name = null) {
     const text = name ? (state.settings.labels ? name : '已選取一塊拼圖') : '尚未選取';
-    const ids = level === 'county'
-      ? ['#selected-name', '#taiwan-mobile-selected']
-      : ['#town-selected-name', '#town-mobile-selected'];
+    const ids = level === 'county' ? ['#selected-name', '#taiwan-mobile-selected']
+      : level === 'town' ? ['#town-selected-name', '#town-mobile-selected']
+      : ['#china-selected-name', '#china-mobile-selected'];
     ids.forEach(id => { const el = $(id); if (el) el.textContent = text; });
   }
 
@@ -250,6 +252,13 @@
       return false;
     }
 
+    if (path.__tmapPath2D && local && typeof Path2D !== 'undefined') {
+      try {
+        const ctx = pointInsideTarget.__ctx || (pointInsideTarget.__ctx = document.createElement('canvas').getContext('2d'));
+        if (ctx?.isPointInPath(path.__tmapPath2D, local.x, local.y, 'evenodd')) return true;
+      } catch (_) {}
+    }
+
     // Last-resort browser-native fill test for any path not produced by our renderer.
     const matrix = path.getScreenCTM?.();
     if (!matrix || typeof path.isPointInFill !== 'function' || typeof DOMPoint === 'undefined') return false;
@@ -294,7 +303,7 @@
   }
 
   function nearestTargetAt(x, y, level, radius = 28, scope = null) {
-    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : $('#town-map'));
+    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map') : $('#china-map-stage'));
     if (!root) return null;
     let best = null;
     let bestDistance = Infinity;
@@ -591,6 +600,7 @@
       if (saved.progress) {
         state.progress.taiwan = Array.isArray(saved.progress.taiwan) ? saved.progress.taiwan : [];
         state.progress.towns = saved.progress.towns || {};
+        state.progress.chinaProvincial = Array.isArray(saved.progress.chinaProvincial) ? saved.progress.chinaProvincial : [];
       }
       if (saved.last) Object.assign(state.last, saved.last);
     } catch (err) {
@@ -623,6 +633,10 @@
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
+  function feedbackForLevel(level) {
+    return level === 'county' ? $('#taiwan-feedback') : level === 'town' ? $('#town-feedback') : $('#china-feedback');
+  }
+
   function setFeedback(el, text, type = '') {
     if (!el) return;
     el.textContent = text;
@@ -640,6 +654,12 @@
 
   function townName(feature) {
     return normalizedName(feature?.properties?.TOWNNAME || feature?.properties?.name || '');
+  }
+
+  function regionName(feature, level) {
+    if (level === 'county') return countyName(feature);
+    if (level === 'town') return townName(feature);
+    return String(feature?.name || feature?.shortName || '').trim();
   }
 
   function countyCode(feature) {
@@ -734,6 +754,14 @@
     return state.data;
   }
 
+  async function ensureChinaData() {
+    if (state.data.china?.locations?.length === 33) return state.data.china;
+    if (!chinaDataPromise) chinaDataPromise = fetch(CHINA_URL).then(r => { if (!r.ok) throw new Error('中國省級行政區圖資下載失敗。'); return r.json(); })
+      .then(data => { if (data?.locations?.length !== 33) throw new Error('中國省級行政區圖資數量不是 33。'); state.data.china = data; return data; })
+      .catch(err => { chinaDataPromise = null; throw err; });
+    return chinaDataPromise;
+  }
+
   function createProjection(features, width, height, pad = 16) {
     return d3.geoMercator().fitExtent([[pad, pad], [width - pad, height - pad]], { type:'FeatureCollection', features });
   }
@@ -747,13 +775,13 @@
 
   function renderPieces(container, features, placedNames, level) {
     container.innerHTML = '';
-    const remaining = shuffle(features.filter(f => !placedNames.includes(level === 'county' ? countyName(f) : townName(f))));
+    const remaining = shuffle(features.filter(f => !placedNames.includes(regionName(f, level))));
     if (!remaining.length) {
       container.innerHTML = '<div class="empty-state">全部完成 ✓</div>';
       return;
     }
     remaining.forEach(feature => {
-      const name = level === 'county' ? countyName(feature) : townName(feature);
+      const name = regionName(feature, level);
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'piece-card' + (state.settings.labels ? '' : ' hide-label');
@@ -783,7 +811,7 @@
   }
 
   function selectPiece(feature, level, sourceButton = null) {
-    const name = level === 'county' ? countyName(feature) : townName(feature);
+    const name = regionName(feature, level);
     state.selected = { feature, level, name };
     $$('.piece-card').forEach(el => el.classList.toggle('is-selected', el.dataset.pieceName === name));
     setSelectedDisplay(level, name);
@@ -807,11 +835,11 @@
   }
 
   function activeMapStage(level) {
-    return level === 'county' ? $('#taiwan-map-stage') : $('#town-map').closest('.town-map-wrap');
+    return level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map').closest('.town-map-wrap') : $('#china-map-stage');
   }
 
   function hitRegionAt(x, y, level) {
-    const screen = level === 'county' ? $('#screen-taiwan') : $('#screen-town');
+    const screen = level === 'county' ? $('#screen-taiwan') : level === 'town' ? $('#screen-town') : $('#screen-china');
     const stack = typeof document.elementsFromPoint === 'function'
       ? document.elementsFromPoint(x, y)
       : [document.elementFromPoint(x, y)].filter(Boolean);
@@ -830,7 +858,7 @@
   }
 
   function correctTargetPaths(name, level) {
-    const root = level === 'town' ? $('#town-map') : $('#taiwan-map-stage');
+    const root = level === 'town' ? $('#town-map') : level === 'county' ? $('#taiwan-map-stage') : $('#china-map-stage');
     if (!root) return [];
     return Array.from(root.querySelectorAll(`.target-region[data-level="${level}"]`))
       .filter(el => el.dataset.regionName === name);
@@ -932,7 +960,7 @@
           state.selected = { feature: drag.feature, level: drag.level, name: drag.name };
           placeSelected(drag.level);
         } else {
-          const feedback = drag.level === 'county' ? $('#taiwan-feedback') : $('#town-feedback');
+          const feedback = feedbackForLevel(drag.level);
           setFeedback(feedback, '準星小圓圈尚未碰到正確區域，再對準一點。', 'try');
         }
         return;
@@ -953,7 +981,7 @@
     if (state.drag) return;
     if (event.pointerType === 'touch') event.preventDefault();
     selectPiece(feature, level);
-    const name = level === 'county' ? countyName(feature) : townName(feature);
+    const name = regionName(feature, level);
     const ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
     ghost.textContent = state.settings.labels ? name : '行政區拼圖';
@@ -1035,7 +1063,7 @@
     const correct = targetName === state.selected.name;
     if (correct) placeSelected(level);
     else {
-      const feedback = level === 'county' ? $('#taiwan-feedback') : $('#town-feedback');
+      const feedback = feedbackForLevel(level);
       setFeedback(feedback, '再試試看！這塊拼圖不是放在這裡。', 'try');
     }
   }
@@ -1052,6 +1080,16 @@
       renderTaiwanPieces();
       updateTaiwanProgress();
       if (state.progress.taiwan.length === 22) setTimeout(showTaiwanComplete, 350);
+    } else if (level === 'china-province') {
+      if (!state.progress.chinaProvincial.includes(name)) state.progress.chinaProvincial.push(name);
+      markTargetPlaced(name, 'china-province');
+      speak(name);
+      setFeedback($('#china-feedback'), `答對了：${name}！`, 'good');
+      state.selected = null;
+      saveState();
+      renderChinaPieces();
+      updateChinaProgress();
+      if (state.progress.chinaProvincial.length === 33) { playCelebrationSound(); setFeedback($('#china-feedback'), '完成 33 / 33！中國省級行政區拼圖完成。', 'good'); }
     } else {
       const county = state.currentCounty;
       state.progress.towns[county] ||= [];
@@ -1069,6 +1107,130 @@
   }
 
 
+  function fitChinaSvgToPath(svgEl, pathEl, padding = 8) {
+    if (!svgEl || !pathEl) return;
+    try {
+      const box = pathEl.getBBox();
+      if (!box.width || !box.height) return;
+      const pad = Math.max(padding, Math.max(box.width, box.height) * 0.08);
+      svgEl.setAttribute('viewBox', `${box.x - pad} ${box.y - pad} ${box.width + pad * 2} ${box.height + pad * 2}`);
+      svgEl.dataset.baseViewBox = svgEl.getAttribute('viewBox');
+      mobileMapStates.delete(svgEl);
+    } catch (_) {}
+  }
+
+  function attachChinaPathGeometry(pathEl, location) {
+    pathEl.__tmapChinaLocation = location;
+    try { if (typeof Path2D !== 'undefined') pathEl.__tmapPath2D = new Path2D(location.d); } catch (_) {}
+  }
+
+  function renderChinaPreview(location) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', state.data.china?.viewBox || '0 0 1000 1000');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', location.d);
+    svg.append(path);
+    requestAnimationFrame(() => fitChinaSvgToPath(svg, path, 4));
+    return svg;
+  }
+
+  function renderChinaPieces() {
+    const container = $('#china-piece-list');
+    if (!container || !state.data.china) return;
+    container.innerHTML = '';
+    const remaining = shuffle(state.data.china.locations.filter(loc => !state.progress.chinaProvincial.includes(loc.name)));
+    if (!remaining.length) { container.innerHTML = '<div class="empty-state">全部完成 ✓</div>'; return; }
+    remaining.forEach(location => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'piece-card' + (state.settings.labels ? '' : ' hide-label');
+      button.dataset.pieceName = location.name;
+      button.append(renderChinaPreview(location));
+      const label = document.createElement('span');
+      label.className = 'piece-name'; label.textContent = location.name; button.append(label);
+      button.addEventListener('click', event => {
+        if (button.dataset.suppressClick) { event.preventDefault(); event.stopPropagation(); delete button.dataset.suppressClick; return; }
+        selectPiece(location, 'china-province', button);
+      });
+      button.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'touch' && !event.target.closest('svg')) return;
+        beginDrag(event, location, 'china-province', button);
+      });
+      container.append(button);
+    });
+  }
+
+  function renderChinaTargetPath(svgEl, locations, placedNames, fitSingle = false) {
+    resetMapView(svgEl);
+    svgEl.replaceChildren();
+    svgEl.setAttribute('viewBox', state.data.china.viewBox);
+    svgEl.dataset.baseViewBox = state.data.china.viewBox;
+    mobileMapStates.delete(svgEl);
+    locations.forEach(location => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', location.d);
+      path.setAttribute('class', 'target-region' + (placedNames.includes(location.name) ? ' is-placed' : ''));
+      path.setAttribute('tabindex', '0'); path.setAttribute('role', 'button');
+      path.dataset.regionName = location.name; path.dataset.level = 'china-province';
+      path.setAttribute('aria-label', location.name);
+      attachChinaPathGeometry(path, location);
+      path.addEventListener('pointerenter', () => { if (!state.drag && !path.classList.contains('is-placed')) path.classList.add('is-hovered'); });
+      path.addEventListener('pointerleave', () => { if (!state.drag) path.classList.remove('is-hovered'); });
+      path.addEventListener('click', targetClick);
+      path.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); targetClick({ currentTarget:path }); } });
+      svgEl.append(path);
+      if (placedNames.includes(location.name) && state.settings.labels && !fitSingle) {
+        requestAnimationFrame(() => {
+          try {
+            const box = path.getBBox();
+            const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+            text.setAttribute('class','map-label'); text.dataset.regionName = location.name; text.dataset.level='china-province';
+            text.setAttribute('text-anchor','middle'); text.setAttribute('x', box.x + box.width/2); text.setAttribute('y', box.y + box.height/2);
+            text.textContent = location.shortName || location.name; svgEl.append(text);
+          } catch (_) {}
+        });
+      }
+    });
+    if (fitSingle && svgEl.firstElementChild) requestAnimationFrame(() => fitChinaSvgToPath(svgEl, svgEl.firstElementChild, 10));
+    bindMobileMap(svgEl, 'china-province');
+  }
+
+  function syncChinaInsetNames() {
+    $$('.china-inset-name[data-region-name]').forEach(label => {
+      label.hidden = !(state.settings.labels && state.progress.chinaProvincial.includes(label.dataset.regionName));
+    });
+  }
+
+  function renderChinaMap() {
+    const all = state.data.china?.locations || [];
+    const insetNames = new Set(['香港特別行政區','澳門特別行政區']);
+    renderChinaTargetPath($('#china-main-map'), all.filter(x => !insetNames.has(x.name)), state.progress.chinaProvincial);
+    const hk = all.find(x => x.name === '香港特別行政區');
+    const mo = all.find(x => x.name === '澳門特別行政區');
+    if (hk) renderChinaTargetPath($('#inset-hong-kong'), [hk], state.progress.chinaProvincial, true);
+    if (mo) renderChinaTargetPath($('#inset-macau'), [mo], state.progress.chinaProvincial, true);
+    syncChinaInsetNames();
+  }
+
+  function updateChinaProgress() {
+    const n = state.progress.chinaProvincial.length;
+    $('#china-progress').textContent = `完成 ${n} / 33`;
+    $('#china-remaining').textContent = `${33 - n} 塊`;
+    setSelectedDisplay('china-province');
+    updateCatalogProgress();
+  }
+
+  function openChinaPuzzle() {
+    state.currentCounty = null; state.selected = null; clearNearTargets();
+    renderChinaMap(); renderChinaPieces(); updateChinaProgress(); updateSettingChips(); showScreen('china');
+  }
+
+  function resetChina() {
+    state.progress.chinaProvincial = []; saveState(); openChinaPuzzle();
+  }
+
+
   function syncIslandNames() {
     $$('.island-name[data-region-name]').forEach(label => {
       const placed = state.progress.taiwan.includes(label.dataset.regionName);
@@ -1077,9 +1239,28 @@
   }
 
   function markTargetPlaced(name, level) {
-    $$(`.target-region[data-level="${level}"]`).filter(el => el.dataset.regionName === name).forEach(el => el.classList.add('is-placed'));
+    const paths = $$(`.target-region[data-level="${level}"]`).filter(el => el.dataset.regionName === name);
+    paths.forEach(el => el.classList.add('is-placed'));
+    if (level === 'china-province') {
+      const mainPath = paths.find(el => el.ownerSVGElement?.id === 'china-main-map');
+      const mainSvg = mainPath?.ownerSVGElement;
+      if (mainPath && mainSvg && !Array.from(mainSvg.querySelectorAll('.map-label[data-region-name]')).some(el => el.dataset.regionName === name)) {
+        try {
+          const box = mainPath.getBBox();
+          const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+          text.setAttribute('class','map-label');
+          text.dataset.regionName = name; text.dataset.level = 'china-province';
+          text.setAttribute('text-anchor','middle');
+          text.setAttribute('x', box.x + box.width / 2); text.setAttribute('y', box.y + box.height / 2);
+          text.style.display = state.settings.labels ? '' : 'none';
+          text.textContent = mainPath.__tmapChinaLocation?.shortName || name;
+          mainSvg.append(text);
+        } catch (_) {}
+      }
+    }
     $$(`.map-label[data-level="${level}"]`).filter(el => el.dataset.regionName === name).forEach(el => el.style.display = state.settings.labels ? '' : 'none');
     if (level === 'county') syncIslandNames();
+    if (level === 'china-province') syncChinaInsetNames();
   }
 
   function renderTargetSvg(svgEl, features, width, height, level, placedNames, showLabels = true) {
@@ -1093,14 +1274,14 @@
       .data(features)
       .join('path')
       .attr('class', f => {
-        const n = level === 'county' ? countyName(f) : townName(f);
+        const n = regionName(f, level);
         return 'target-region' + (placedNames.includes(n) ? ' is-placed' : '');
       })
       .attr('d', path)
       .attr('tabindex', 0)
       .attr('role', 'button')
-      .attr('aria-label', f => level === 'county' ? countyName(f) : townName(f))
-      .attr('data-region-name', f => level === 'county' ? countyName(f) : townName(f))
+      .attr('aria-label', f => regionName(f, level))
+      .attr('data-region-name', f => regionName(f, level))
       .attr('data-level', level)
       .each(function(f) { this.__tmapProjectedGeometry = projectFeatureGeometry(f, projection); })
       .on('pointerenter', function() {
@@ -1114,16 +1295,16 @@
 
     if (showLabels) {
       svg.selectAll('text.map-label')
-        .data(features.filter(f => placedNames.includes(level === 'county' ? countyName(f) : townName(f))))
+        .data(features.filter(f => placedNames.includes(regionName(f, level))))
         .join('text')
         .attr('class', 'map-label')
-        .attr('data-region-name', f => level === 'county' ? countyName(f) : townName(f))
+        .attr('data-region-name', f => regionName(f, level))
         .attr('data-level', level)
         .attr('text-anchor', 'middle')
         .attr('x', f => path.centroid(f)[0])
         .attr('y', f => path.centroid(f)[1])
         .style('display', state.settings.labels ? '' : 'none')
-        .text(f => level === 'county' ? countyName(f) : townName(f));
+        .text(f => regionName(f, level));
     }
     bindMobileMap(svgEl, level);
   }
@@ -1294,13 +1475,13 @@
 
   function updateSettingChips() {
     const specs = [
-      ['taiwan-speech','town-speech','speech','🔊 朗讀'],
-      ['taiwan-labels','town-labels','labels','🏷 名稱'],
-      ['taiwan-snap','town-snap','snapHint','🧲 正確提示'],
-      ['taiwan-magnifier','town-magnifier','magnifier','🔍 放大鏡']
+      ['taiwan-speech','town-speech','speech','🔊 朗讀','china-speech'],
+      ['taiwan-labels','town-labels','labels','🏷 名稱','china-labels'],
+      ['taiwan-snap','town-snap','snapHint','🧲 正確提示','china-snap'],
+      ['taiwan-magnifier','town-magnifier','magnifier','🔍 放大鏡','china-magnifier']
     ];
-    specs.forEach(([a,b,key,label]) => {
-      [a,b].forEach(id => {
+    specs.forEach(([a,b,key,label,c]) => {
+      [a,b,c].filter(Boolean).forEach(id => {
         const el = $('#' + id);
         if (!el) return;
         el.textContent = `${label}：${state.settings[key] ? 'ON' : 'OFF'}`;
@@ -1321,10 +1502,12 @@
     $$('.piece-card').forEach(el => el.classList.toggle('hide-label', !state.settings.labels));
     $$('.map-label').forEach(el => el.style.display = state.settings.labels ? '' : 'none');
     syncIslandNames();
+    syncChinaInsetNames();
     if (state.selected) setSelectedDisplay(state.selected.level, state.selected.name);
     else {
       setSelectedDisplay('county');
       setSelectedDisplay('town');
+      setSelectedDisplay('china-province');
     }
   }
 
@@ -1363,6 +1546,7 @@
   }
 
   function catalogProgressText(mapId) {
+    if (mapId === 'china-provincial') { const p = TMapEngine.progressStatus(33, state.progress.chinaProvincial); return `省級行政區 ${p.done} / ${p.total}`; }
     if (mapId !== 'taiwan') return '';
     const countyProgress = TMapEngine.progressStatus(22, state.progress.taiwan);
     return `縣市 ${countyProgress.done} / ${countyProgress.total} · 完成縣市探索 ${taiwanCompletedCountyCount()} / 22`;
@@ -1415,8 +1599,7 @@
   }
 
   function updateCatalogProgress() {
-    const el = document.querySelector('[data-catalog-progress="taiwan"]');
-    if (el) el.textContent = catalogProgressText('taiwan');
+    ['taiwan','china-provincial'].forEach(id => { const el = document.querySelector(`[data-catalog-progress="${id}"]`); if (el) el.textContent = catalogProgressText(id); });
   }
 
   function openPlatformCatalog() {
@@ -1427,6 +1610,15 @@
   async function openMapModule(mapId) {
     const map = window.TMapRegistry?.getMap(mapId);
     if (!map || map.status !== 'ready') return;
+    if (map.id === 'china-provincial') {
+      try {
+        await ensureChinaData();
+        state.settings.speechMode = 'mandarin';
+        updateSettingChips();
+        openChinaPuzzle();
+      } catch (err) { console.error(err); showSpeechNotice('中國省級行政區圖資沒有成功載入，請重新整理後再試。'); }
+      return;
+    }
     if (map.id === 'taiwan') {
       try {
         await ensureTaiwanData();
@@ -1471,6 +1663,7 @@
       if (action === 'open-explorer') openExplorer();
       if (action === 'go-home') showScreen('home');
       if (action === 'reset-taiwan') resetTaiwan();
+      if (action === 'reset-china') resetChina();
       if (action === 'open-help') $('#help-dialog').showModal();
       if (action === 'toggle-theme') toggleTheme();
       if (action === 'toggle-piece-drawer') toggleMobileDrawer(event.target.closest('[data-drawer]')?.dataset.drawer || event.target.dataset.drawer);
@@ -1501,6 +1694,10 @@
     $('#town-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#town-snap').addEventListener('click', () => toggleSetting('snapHint'));
     $('#town-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
+    $('#china-speech')?.addEventListener('click', () => toggleSetting('speech'));
+    $('#china-labels')?.addEventListener('click', () => toggleSetting('labels'));
+    $('#china-snap')?.addEventListener('click', () => toggleSetting('snapHint'));
+    $('#china-magnifier')?.addEventListener('click', () => toggleSetting('magnifier'));
     $('#reset-town').addEventListener('click', resetTown);
     $('#county-search').addEventListener('input', renderCountyList);
     $('#region-filter').addEventListener('change', renderCountyList);
@@ -1517,7 +1714,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.3</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.3 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.4</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.4 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {
