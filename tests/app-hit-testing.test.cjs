@@ -41,3 +41,11 @@ test('China SVG paths use Path2D interior hit testing and the shared drag pipeli
   assert.match(app, /renderChinaTargetPath\(\$\('#inset-hong-kong'\)/);
   assert.match(app, /renderChinaTargetPath\(\$\('#inset-macau'\)/);
 });
+
+test('World first layer shares drag, grouped target and local-data pipeline', () => {
+  assert.match(app, /const WORLD_URL = 'data\/world-regions\.json'/);
+  assert.match(app, /beginDrag\(event,\s*item,\s*'world-region'/);
+  assert.match(app, /function renderWorldMap\(\)/);
+  assert.match(app, /worldTargetPath\(zone\.d,\s*ocean/);
+  assert.match(app, /correctTargetPaths\(name,\s*level\)\.forEach/);
+});

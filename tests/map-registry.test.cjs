@@ -7,11 +7,11 @@ test('registry has unique ids', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('Taiwan and China are ready modules in v1.05.4', () => {
-  assert.deepEqual(registry.readyMaps().map(m => m.id), ['taiwan', 'china-provincial']);
+test('Taiwan, China and World first layer are ready modules in v1.05.5', () => {
+  assert.deepEqual(registry.readyMaps().map(m => m.id), ['taiwan', 'china-provincial', 'world']);
   assert.equal(registry.isReady('taiwan'), true);
   assert.equal(registry.isReady('china-provincial'), true);
-  assert.equal(registry.isReady('world'), false);
+  assert.equal(registry.isReady('world'), true);
 });
 
 test('Taiwan retains two puzzle levels and existing counts', () => {
@@ -29,15 +29,20 @@ test('China project scope is a ready 33-piece module', () => {
   assert.deepEqual(china.speechModes, ['mandarin']);
 });
 
-test('World first level contains seven continents and four oceans', () => {
+test('World first level is ready with seven continents, three major oceans and Arctic Ocean', () => {
   const world = registry.getMap('world');
-  assert.equal(world.levels[0].plannedItems.length, 11);
-  assert.ok(world.levels[0].plannedItems.includes('北極海'));
+  const first = world.levels[0];
+  assert.equal(first.status, 'ready');
+  assert.equal(first.pieceCount, 11);
+  assert.equal(first.items.length, 11);
+  assert.ok(first.items.includes('北極海'));
+  assert.ok(first.items.includes('太平洋'));
   assert.deepEqual(world.speechModes, ['mandarin', 'english']);
 });
 
-test('World country layer keeps small-country omission as explicit policy', () => {
+test('World country layer remains planned and keeps explicit small-country policy', () => {
   const countries = registry.getMap('world').levels[1];
+  assert.equal(countries.status, 'planned');
   assert.equal(countries.groupBy, 'continent');
   assert.equal(countries.smallRegionPolicy, 'exclude-initially');
 });

@@ -657,3 +657,48 @@ html[data-theme="dark"] {
   .china-inset-grid { display: flex; overflow-x: auto; gap: 8px; padding: 8px 0 3px; scroll-snap-type: x proximity; touch-action: pan-x pan-y; overscroll-behavior-x: contain; }
   .china-inset-grid .island-box { min-width: 164px; scroll-snap-align: start; }
 }
+
+/* v1.05.5: world first layer — seven continents + four teaching ocean zones. */
+.world-stage { display: block; }
+.world-map-box {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  min-height: 620px;
+  background: var(--map-bg);
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  overflow: hidden;
+}
+.world-map-svg { width: 100%; height: auto; max-height: 72vh; }
+.world-continent-target { stroke-width: .9; }
+.world-ocean-target:not(.is-hovered):not(.is-near):not(.is-placed) {
+  fill: transparent;
+  stroke: transparent;
+}
+.world-ocean-target.is-placed {
+  fill: color-mix(in srgb, var(--placed-fill) 28%, transparent);
+  stroke: color-mix(in srgb, var(--placed-stroke) 70%, transparent);
+  stroke-dasharray: 8 6;
+}
+.world-map-label {
+  font-size: 13px;
+  font-weight: 850;
+  paint-order: stroke fill;
+  stroke: var(--map-bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+.world-piece-card .world-ocean-piece path {
+  fill: none;
+  stroke: var(--piece-stroke);
+  stroke-width: 4;
+}
+@media (max-width: 900px) {
+  .world-map-box { min-height: 480px; }
+}
+@media (max-width: 640px) {
+  .world-map-box { min-height: min(56dvh, 470px); }
+  .world-map-svg { height: min(56dvh, 470px); }
+  .world-map-label { font-size: 11px; }
+}

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { normalizeChinaMap } from './china-map.mjs';
+import { normalizeWorldMap } from './world-map.mjs';
 
 const require = createRequire(import.meta.url);
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -15,7 +16,9 @@ const required = [
   ['TopoJSON Client', 'node_modules/topojson-client/dist/topojson-client.min.js'],
   ['臺灣縣市圖資', 'node_modules/taiwan-atlas/counties-10t.json'],
   ['臺灣鄉鎮市區圖資', 'node_modules/taiwan-atlas/towns-10t.json'],
-  ['中國省級行政區 SVG 套件', 'node_modules/@svg-maps/china/index.js']
+  ['中國省級行政區 SVG 套件', 'node_modules/@svg-maps/china/index.js'],
+  ['世界 SVG 套件', 'node_modules/@svg-maps/world/index.js'],
+  ['國家洲別資料', 'node_modules/countries-list/package.json']
 ];
 for (const [label, rel] of required) {
   if (!existsSync(path.join(root, rel))) throw new Error(`${label} 尚未安裝：${rel}。請先執行 npm install。`);
@@ -37,12 +40,21 @@ const chinaSource = require('@svg-maps/china');
 const chinaData = normalizeChinaMap(chinaSource);
 await writeFile(path.join(dist, 'data/china-provinces.json'), JSON.stringify(chinaData) + '\n', 'utf8');
 
+const worldSource = require('@svg-maps/world');
+const countryModule = await import('countries-list');
+const worldData = normalizeWorldMap(worldSource, countryModule);
+await writeFile(path.join(dist, 'data/world-regions.json'), JSON.stringify(worldData) + '\n', 'utf8');
+
 const licenseCandidates = [
   ['D3-ISC.txt', 'node_modules/d3/LICENSE'],
   ['topojson-client-ISC.txt', 'node_modules/topojson-client/LICENSE'],
   ['taiwan-atlas-package.json', 'node_modules/taiwan-atlas/package.json'],
   ['svg-maps-china-package.json', 'node_modules/@svg-maps/china/package.json'],
-  ['svg-maps-china-LICENSE.md', 'node_modules/@svg-maps/china/LICENSE.md']
+  ['svg-maps-china-LICENSE.md', 'node_modules/@svg-maps/china/LICENSE.md'],
+  ['svg-maps-world-package.json', 'node_modules/@svg-maps/world/package.json'],
+  ['svg-maps-world-LICENSE.md', 'node_modules/@svg-maps/world/LICENSE.md'],
+  ['countries-list-package.json', 'node_modules/countries-list/package.json'],
+  ['countries-list-LICENSE', 'node_modules/countries-list/LICENSE']
 ];
 for (const [target, rel] of licenseCandidates) {
   const src = path.join(root, rel); if (existsSync(src)) await copyFile(src, path.join(dist, 'licenses', target));
@@ -53,14 +65,19 @@ const townTopo = JSON.parse(await readFile(path.join(dist, 'data/towns-10t.json'
 const countyCount = countyTopo?.objects?.counties?.geometries?.length ?? 0;
 const townCount = townTopo?.objects?.towns?.geometries?.length ?? 0;
 const chinaCount = chinaData.locations.length;
+const worldContinentCount = worldData.continents.length;
+const worldOceanCount = worldData.oceans.length;
 if (countyCount !== 22) throw new Error(`縣市圖資完整性檢查失敗：預期 22，實際 ${countyCount}`);
 if (townCount !== 368) throw new Error(`鄉鎮市區圖資完整性檢查失敗：預期 368，實際 ${townCount}`);
 if (chinaCount !== 33) throw new Error(`中國省級行政區圖資完整性檢查失敗：預期 33，實際 ${chinaCount}`);
+if (worldContinentCount !== 7 || worldOceanCount !== 4) throw new Error(`世界第一層圖資完整性檢查失敗：洲 ${worldContinentCount}、海洋 ${worldOceanCount}`);
 
 const stamp = {
-  app: 'T map', version: '1.05.4', builtAt: new Date().toISOString(), localizedAssets: true,
-  countyCount, townCount, chinaProvincialCount: chinaCount, runtimeExternalCdn: false,
-  platformMaps: ['taiwan', 'china-provincial', 'world'], readyMaps: ['taiwan', 'china-provincial']
+  app: 'T map', version: '1.05.5', builtAt: new Date().toISOString(), localizedAssets: true,
+  countyCount, townCount, chinaProvincialCount: chinaCount,
+  worldContinentCount, worldOceanCount, worldFirstLevelCount: worldContinentCount + worldOceanCount,
+  runtimeExternalCdn: false,
+  platformMaps: ['taiwan', 'china-provincial', 'world'], readyMaps: ['taiwan', 'china-provincial', 'world']
 };
 await writeFile(path.join(dist, 'build-info.json'), JSON.stringify(stamp, null, 2) + '\n', 'utf8');
-console.log(`T map v1.05.4 build completed: ${countyCount} counties, ${townCount} towns, ${chinaCount} China provincial regions.`);
+console.log(`T map v1.05.5 build completed: ${countyCount} counties, ${townCount} towns, ${chinaCount} China provincial regions, ${worldContinentCount} continents + ${worldOceanCount} oceans.`);

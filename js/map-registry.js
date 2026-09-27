@@ -33,18 +33,20 @@
     }),
     Object.freeze({
       id: 'world',
-      status: 'planned',
+      status: 'ready',
       mark: '🌍',
       title: '世界地圖',
-      subtitle: '7 大洲＋4 海洋 → 各洲國家',
-      description: '第一層辨識七大洲與太平洋、大西洋、印度洋、北極海；第二層依洲進入國家拼圖。',
+      subtitle: '7 大洲＋3 大洋＋北極海 → 各洲國家',
+      description: '第一層七大洲＋太平洋、大西洋、印度洋、北極海已可遊玩；第二層各洲國家拼圖持續建置。',
       speechModes: Object.freeze(['mandarin', 'english']),
       levels: Object.freeze([
         Object.freeze({
           id: 'continents-oceans',
-          title: '七大洲＋四海洋',
+          title: '七大洲＋三大洋＋北極海',
+          status: 'ready',
           type: 'mixed-region-puzzle',
-          plannedItems: Object.freeze([
+          pieceCount: 11,
+          items: Object.freeze([
             '亞洲','歐洲','非洲','北美洲','南美洲','大洋洲','南極洲',
             '太平洋','大西洋','印度洋','北極海'
           ])
@@ -52,6 +54,7 @@
         Object.freeze({
           id: 'countries',
           title: '各洲國家',
+          status: 'planned',
           type: 'polygon-puzzle',
           parent: 'continents-oceans',
           groupBy: 'continent',

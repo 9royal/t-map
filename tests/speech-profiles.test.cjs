@@ -17,13 +17,13 @@ test('Taiwanese profile accepts nan-TW and Hokkien voice names', () => {
   assert.equal(speech.voiceMatches({ name: 'Mandarin Taiwan', lang: 'zh-TW' }, 'taiwanese'), false);
 });
 
-test('English profile is available for future world-map modules', () => {
+test('English profile is available for the world-map module', () => {
   assert.equal(speech.getProfile('english').lang, 'en');
   assert.equal(speech.voiceMatches({ name: 'Samantha', lang: 'en-US' }, 'english'), true);
 });
 
 
-test('map-specific speech modes are prepared for future modules', () => {
+test('map-specific speech modes support the active modules', () => {
   assert.deepEqual(speech.modesForMap('taiwan'), ['mandarin', 'taiwanese']);
   assert.deepEqual(speech.modesForMap('china-provincial'), ['mandarin']);
   assert.deepEqual(speech.modesForMap('world'), ['mandarin', 'english']);

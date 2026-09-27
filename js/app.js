@@ -1,11 +1,12 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.4';
+  const VERSION = '1.05.5';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
   const CHINA_URL = 'data/china-provinces.json';
+  const WORLD_URL = 'data/world-regions.json';
   const ISLANDS = new Set(['澎湖縣', '金門縣', '連江縣']);
   const REGION_MAP = {
     '基隆市':'north','臺北市':'north','新北市':'north','桃園市':'north','新竹市':'north','新竹縣':'north','宜蘭縣':'north',
@@ -17,20 +18,21 @@
 
   const state = {
     settings: { speech: true, speechMode: 'mandarin', labels: true, snapHint: true, magnifier: true, effects: true, theme: 'light' },
-    progress: { taiwan: [], towns: {}, chinaProvincial: [] },
+    progress: { taiwan: [], towns: {}, chinaProvincial: [], worldRegions: [] },
     last: { screen: 'home', county: null },
-    data: { counties: [], towns: [], china: null },
+    data: { counties: [], towns: [], china: null, world: null },
     selected: null,
     currentCounty: null,
     drag: null
   };
 
-  const screens = ['catalog','home','taiwan','complete','explorer','town','china'];
+  const screens = ['catalog','home','taiwan','complete','explorer','town','china','world'];
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   let audioContext = null;
   let taiwanDataPromise = null;
   let chinaDataPromise = null;
+  let worldDataPromise = null;
   const MOBILE_BREAKPOINT = 640;
   const MAGNIFIER_SCALE = 2.35;
   // CSS crosshair: 12px content + 2px border on each side = 16px outer diameter.
@@ -70,14 +72,15 @@
 
   function syncMobilePuzzleClass() {
     const active = $('.screen.is-active')?.id;
-    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town' || active === 'screen-china'));
+    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town' || active === 'screen-china' || active === 'screen-world'));
   }
 
   function setSelectedDisplay(level, name = null) {
     const text = name ? (state.settings.labels ? name : '已選取一塊拼圖') : '尚未選取';
     const ids = level === 'county' ? ['#selected-name', '#taiwan-mobile-selected']
       : level === 'town' ? ['#town-selected-name', '#town-mobile-selected']
-      : ['#china-selected-name', '#china-mobile-selected'];
+      : level === 'china-province' ? ['#china-selected-name', '#china-mobile-selected']
+      : ['#world-selected-name', '#world-mobile-selected'];
     ids.forEach(id => { const el = $(id); if (el) el.textContent = text; });
   }
 
@@ -303,7 +306,7 @@
   }
 
   function nearestTargetAt(x, y, level, radius = 28, scope = null) {
-    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map') : $('#china-map-stage'));
+    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map') : level === 'china-province' ? $('#china-map-stage') : $('#world-map-stage'));
     if (!root) return null;
     let best = null;
     let bestDistance = Infinity;
@@ -319,10 +322,21 @@
     return best;
   }
 
+  function setRegionClass(path, className, enabled = true) {
+    if (!path) return;
+    const name = path.dataset.regionName;
+    const level = path.dataset.level;
+    const peers = name && level ? correctTargetPaths(name, level) : [path];
+    peers.forEach(el => {
+      if (el.classList.contains('is-placed') && className !== 'is-placed') return;
+      el.classList.toggle(className, !!enabled);
+    });
+  }
+
   function flashTarget(path, duration = 320) {
     if (!path || path.classList.contains('is-placed')) return;
-    path.classList.add('is-hovered');
-    setTimeout(() => path.classList.remove('is-hovered'), duration);
+    setRegionClass(path, 'is-hovered', true);
+    setTimeout(() => setRegionClass(path, 'is-hovered', false), duration);
   }
 
   function ensureMagnifier() {
@@ -340,8 +354,9 @@
     if (!magnifier?.clone) return;
     magnifier.clone.querySelectorAll('.target-region.is-near').forEach(el => el.classList.remove('is-near'));
     if (!regionName) return;
-    const target = Array.from(magnifier.clone.querySelectorAll('.target-region')).find(el => el.dataset.regionName === regionName);
-    if (target && !target.classList.contains('is-placed')) target.classList.add('is-near');
+    Array.from(magnifier.clone.querySelectorAll('.target-region')).forEach(target => {
+      if (target.dataset.regionName === regionName && !target.classList.contains('is-placed')) target.classList.add('is-near');
+    });
   }
 
   function hideMagnifier() {
@@ -568,10 +583,12 @@
     return audioContext;
   }
 
-  function playCelebrationSound() {
+  async function playCelebrationSound() {
     if (!state.settings.effects) return;
     const ctx = ensureAudioContext();
     if (!ctx) return;
+    try { if (ctx.state === 'suspended') await ctx.resume(); } catch (_) {}
+    if (ctx.state === 'suspended') return;
     const start = ctx.currentTime + 0.02;
     const notes = [523.25, 659.25, 783.99, 1046.5];
     notes.forEach((frequency, index) => {
@@ -601,6 +618,7 @@
         state.progress.taiwan = Array.isArray(saved.progress.taiwan) ? saved.progress.taiwan : [];
         state.progress.towns = saved.progress.towns || {};
         state.progress.chinaProvincial = Array.isArray(saved.progress.chinaProvincial) ? saved.progress.chinaProvincial : [];
+        state.progress.worldRegions = Array.isArray(saved.progress.worldRegions) ? saved.progress.worldRegions : [];
       }
       if (saved.last) Object.assign(state.last, saved.last);
     } catch (err) {
@@ -634,7 +652,7 @@
   }
 
   function feedbackForLevel(level) {
-    return level === 'county' ? $('#taiwan-feedback') : level === 'town' ? $('#town-feedback') : $('#china-feedback');
+    return level === 'county' ? $('#taiwan-feedback') : level === 'town' ? $('#town-feedback') : level === 'china-province' ? $('#china-feedback') : $('#world-feedback');
   }
 
   function setFeedback(el, text, type = '') {
@@ -660,6 +678,13 @@
     if (level === 'county') return countyName(feature);
     if (level === 'town') return townName(feature);
     return String(feature?.name || feature?.shortName || '').trim();
+  }
+
+  function spokenRegionName(feature, level, fallback = '') {
+    if (level === 'world-region' && state.settings.speechMode === 'english') {
+      return String(feature?.nameEn || fallback || regionName(feature, level)).trim();
+    }
+    return fallback || regionName(feature, level);
   }
 
   function countyCode(feature) {
@@ -711,14 +736,15 @@
     window.speechSynthesis.speak(utterance);
   }
 
-  function setSpeechMode(mode) {
-    state.settings.speechMode = TMapSpeech.normalizeMode(mode);
+  function setSpeechMode(mode, allowed = TMapSpeech.TAIWAN_MODES) {
+    state.settings.speechMode = TMapSpeech.normalizeMode(mode, allowed);
     saveState();
     updateSettingChips();
   }
 
-  function cycleSpeechMode() {
-    setSpeechMode(TMapSpeech.nextMode(state.settings.speechMode));
+  function cycleSpeechMode(mapId = 'taiwan') {
+    const allowed = window.TMapRegistry?.speechModesFor(mapId) || TMapSpeech.modesForMap(mapId);
+    setSpeechMode(TMapSpeech.nextMode(state.settings.speechMode, allowed), allowed);
   }
 
   function shuffle(array) {
@@ -760,6 +786,18 @@
       .then(data => { if (data?.locations?.length !== 33) throw new Error('中國省級行政區圖資數量不是 33。'); state.data.china = data; return data; })
       .catch(err => { chinaDataPromise = null; throw err; });
     return chinaDataPromise;
+  }
+
+  async function ensureWorldData() {
+    if (state.data.world?.continents?.length === 7 && state.data.world?.oceans?.length === 4) return state.data.world;
+    if (!worldDataPromise) worldDataPromise = fetch(WORLD_URL).then(r => { if (!r.ok) throw new Error('世界第一層圖資下載失敗。'); return r.json(); })
+      .then(data => {
+        if (data?.continents?.length !== 7 || data?.oceans?.length !== 4) throw new Error('世界第一層圖資不是 7 大洲＋3 大洋＋北極海。');
+        state.data.world = data;
+        return data;
+      })
+      .catch(err => { worldDataPromise = null; throw err; });
+    return worldDataPromise;
   }
 
   function createProjection(features, width, height, pad = 16) {
@@ -815,7 +853,7 @@
     state.selected = { feature, level, name };
     $$('.piece-card').forEach(el => el.classList.toggle('is-selected', el.dataset.pieceName === name));
     setSelectedDisplay(level, name);
-    speak(name);
+    speak(spokenRegionName(feature, level, name));
     if (sourceButton) sourceButton.focus({ preventScroll: true });
     if (isMobileLayout() && sourceButton) {
       const panel = sourceButton.closest('.piece-panel');
@@ -835,11 +873,11 @@
   }
 
   function activeMapStage(level) {
-    return level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map').closest('.town-map-wrap') : $('#china-map-stage');
+    return level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map').closest('.town-map-wrap') : level === 'china-province' ? $('#china-map-stage') : $('#world-map-stage');
   }
 
   function hitRegionAt(x, y, level) {
-    const screen = level === 'county' ? $('#screen-taiwan') : level === 'town' ? $('#screen-town') : $('#screen-china');
+    const screen = level === 'county' ? $('#screen-taiwan') : level === 'town' ? $('#screen-town') : level === 'china-province' ? $('#screen-china') : $('#screen-world');
     const stack = typeof document.elementsFromPoint === 'function'
       ? document.elementsFromPoint(x, y)
       : [document.elementFromPoint(x, y)].filter(Boolean);
@@ -858,7 +896,7 @@
   }
 
   function correctTargetPaths(name, level) {
-    const root = level === 'town' ? $('#town-map') : level === 'county' ? $('#taiwan-map-stage') : $('#china-map-stage');
+    const root = level === 'town' ? $('#town-map') : level === 'county' ? $('#taiwan-map-stage') : level === 'china-province' ? $('#china-map-stage') : $('#world-map-stage');
     if (!root) return [];
     return Array.from(root.querySelectorAll(`.target-region[data-level="${level}"]`))
       .filter(el => el.dataset.regionName === name);
@@ -910,10 +948,14 @@
     const result = measureDrop(x, y, level, name, radius, hitRadius);
     updateHitDebug({ x, y, name, result, magnifier: !!state.drag?.usingMagnifier });
     if (result.hovered && !result.hovered.classList.contains('is-placed')) {
-      result.hovered.classList.add('is-hovered');
+      setRegionClass(result.hovered, 'is-hovered', true);
     }
     const hintSurface = TMapHints.correctHintSurface(result.showCorrectHint, !!state.drag?.usingMagnifier);
-    if (hintSurface === 'map' && result.correct) result.correct.classList.add('is-near');
+    if (hintSurface === 'map' && result.correct) {
+      correctTargetPaths(name, level).forEach(path => {
+        if (!path.classList.contains('is-placed')) path.classList.add('is-near');
+      });
+    }
     return result;
   }
 
@@ -1052,7 +1094,9 @@
     const targetName = event.currentTarget.dataset.regionName;
     const level = event.currentTarget.dataset.level;
     if (!state.selected || state.selected.level !== level) {
-      speak(targetName);
+      const spoken = level === 'world-region' && state.settings.speechMode === 'english'
+        ? (event.currentTarget.dataset.regionNameEn || targetName) : targetName;
+      speak(spoken);
       return;
     }
     attemptPlacement(targetName, level);
@@ -1089,7 +1133,18 @@
       saveState();
       renderChinaPieces();
       updateChinaProgress();
-      if (state.progress.chinaProvincial.length === 33) { playCelebrationSound(); setFeedback($('#china-feedback'), '完成 33 / 33！中國省級行政區拼圖完成。', 'good'); }
+      if (state.progress.chinaProvincial.length === 33) { playCelebrationSound(); setTimeout(() => showChinaComplete(false), 300); }
+    } else if (level === 'world-region') {
+      const feature = state.selected.feature;
+      if (!state.progress.worldRegions.includes(name)) state.progress.worldRegions.push(name);
+      speak(spokenRegionName(feature, level, name));
+      setFeedback($('#world-feedback'), `答對了：${name}！`, 'good');
+      state.selected = null;
+      saveState();
+      renderWorldMap();
+      renderWorldPieces();
+      updateWorldProgress();
+      if (state.progress.worldRegions.length === 11) { playCelebrationSound(); setTimeout(() => showWorldComplete(false), 300); }
     } else {
       const county = state.currentCounty;
       state.progress.towns[county] ||= [];
@@ -1228,6 +1283,147 @@
 
   function resetChina() {
     state.progress.chinaProvincial = []; saveState(); openChinaPuzzle();
+  }
+
+  function worldPieces() {
+    if (!state.data.world) return [];
+    return [...(state.data.world.continents || []), ...(state.data.world.oceans || [])];
+  }
+
+  function fitSvgToChildren(svgEl, padding = 8) {
+    if (!svgEl) return;
+    try {
+      const box = svgEl.querySelector('g')?.getBBox?.();
+      if (!box || !box.width || !box.height) return;
+      const pad = Math.max(padding, Math.max(box.width, box.height) * 0.06);
+      svgEl.setAttribute('viewBox', `${box.x - pad} ${box.y - pad} ${box.width + pad * 2} ${box.height + pad * 2}`);
+    } catch (_) {}
+  }
+
+  function renderWorldPreview(item) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('aria-hidden', 'true');
+    if (item.kind === 'ocean') {
+      svg.setAttribute('viewBox', '0 0 112 76');
+      const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      group.setAttribute('class', 'world-ocean-piece');
+      ['M10 28C24 18 38 38 52 28S80 18 102 28','M10 46C24 36 38 56 52 46S80 36 102 46'].forEach(d => {
+        const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill','none');
+        path.setAttribute('stroke','currentColor');
+        path.setAttribute('stroke-width','4');
+        path.setAttribute('stroke-linecap','round');
+        group.append(path);
+      });
+      svg.append(group);
+      return svg;
+    }
+    svg.setAttribute('viewBox', state.data.world?.viewBox || '0 0 1010 666');
+    const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    (item.paths || []).forEach(part => {
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d', part.d);
+      group.append(path);
+    });
+    svg.append(group);
+    requestAnimationFrame(() => fitSvgToChildren(svg, 4));
+    return svg;
+  }
+
+  function renderWorldPieces() {
+    const container = $('#world-piece-list');
+    if (!container || !state.data.world) return;
+    container.innerHTML = '';
+    const remaining = shuffle(worldPieces().filter(item => !state.progress.worldRegions.includes(item.name)));
+    if (!remaining.length) { container.innerHTML = '<div class="empty-state">全部完成 ✓</div>'; return; }
+    remaining.forEach(item => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'piece-card world-piece-card' + (state.settings.labels ? '' : ' hide-label');
+      button.dataset.pieceName = item.name;
+      button.append(renderWorldPreview(item));
+      const label = document.createElement('span');
+      label.className = 'piece-name'; label.textContent = item.name; button.append(label);
+      button.addEventListener('click', event => {
+        if (button.dataset.suppressClick) { event.preventDefault(); event.stopPropagation(); delete button.dataset.suppressClick; return; }
+        selectPiece(item, 'world-region', button);
+      });
+      button.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'touch' && !event.target.closest('svg')) return;
+        beginDrag(event, item, 'world-region', button);
+      });
+      container.append(button);
+    });
+  }
+
+  function attachWorldPathGeometry(pathEl, d) {
+    try { if (typeof Path2D !== 'undefined') pathEl.__tmapPath2D = new Path2D(d); } catch (_) {}
+  }
+
+  function worldTargetPath(d, item, extraClass = '') {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    const placed = state.progress.worldRegions.includes(item.name);
+    path.setAttribute('class', `target-region ${extraClass}${placed ? ' is-placed' : ''}`.trim());
+    path.setAttribute('tabindex', '0');
+    path.setAttribute('role', 'button');
+    path.dataset.regionName = item.name;
+    path.dataset.regionNameEn = item.nameEn || item.name;
+    path.dataset.level = 'world-region';
+    path.setAttribute('aria-label', item.name);
+    attachWorldPathGeometry(path, d);
+    path.addEventListener('pointerenter', () => { if (!state.drag && !path.classList.contains('is-placed')) setRegionClass(path, 'is-hovered', true); });
+    path.addEventListener('pointerleave', () => { if (!state.drag) setRegionClass(path, 'is-hovered', false); });
+    path.addEventListener('click', targetClick);
+    path.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); targetClick({ currentTarget:path }); } });
+    return path;
+  }
+
+  function renderWorldMap() {
+    const svgEl = $('#world-main-map');
+    if (!svgEl || !state.data.world) return;
+    svgEl.replaceChildren();
+    svgEl.setAttribute('viewBox', state.data.world.viewBox || '0 0 1010 666');
+    svgEl.dataset.baseViewBox = svgEl.getAttribute('viewBox');
+    mobileMapStates.delete(svgEl);
+
+    (state.data.world.oceans || []).forEach(ocean => {
+      (ocean.zones || []).forEach(zone => svgEl.append(worldTargetPath(zone.d, ocean, 'world-ocean-target')));
+    });
+    (state.data.world.continents || []).forEach(continent => {
+      (continent.paths || []).forEach(part => svgEl.append(worldTargetPath(part.d, continent, 'world-continent-target')));
+    });
+
+    worldPieces().filter(item => state.progress.worldRegions.includes(item.name)).forEach(item => {
+      (item.labelPoints || []).forEach(([x,y]) => {
+        const text = document.createElementNS('http://www.w3.org/2000/svg','text');
+        text.setAttribute('class','map-label world-map-label');
+        text.dataset.regionName = item.name; text.dataset.level = 'world-region';
+        text.setAttribute('text-anchor','middle'); text.setAttribute('x', x); text.setAttribute('y', y);
+        text.style.display = state.settings.labels ? '' : 'none';
+        text.textContent = item.name;
+        svgEl.append(text);
+      });
+    });
+    bindMobileMap(svgEl, 'world-region');
+  }
+
+  function updateWorldProgress() {
+    const n = state.progress.worldRegions.length;
+    $('#world-progress').textContent = `完成 ${n} / 11`;
+    $('#world-remaining').textContent = `${11 - n} 塊`;
+    setSelectedDisplay('world-region');
+    updateCatalogProgress();
+  }
+
+  function openWorldPuzzle() {
+    state.currentCounty = null; state.selected = null; clearNearTargets();
+    renderWorldMap(); renderWorldPieces(); updateWorldProgress(); updateSettingChips(); showScreen('world');
+  }
+
+  function resetWorld() {
+    state.progress.worldRegions = []; saveState(); openWorldPuzzle();
   }
 
 
@@ -1460,6 +1656,18 @@
     $('#town-complete-dialog').showModal();
   }
 
+  function showChinaComplete(playSound = true) {
+    if (playSound) playCelebrationSound();
+    setFeedback($('#china-feedback'), '完成 33 / 33！中國省級行政區拼圖完成。', 'good');
+    $('#china-complete-dialog')?.showModal();
+  }
+
+  function showWorldComplete(playSound = true) {
+    if (playSound) playCelebrationSound();
+    setFeedback($('#world-feedback'), '完成 11 / 11！七大洲、三大洋與北極海第一層完成。', 'good');
+    $('#world-complete-dialog')?.showModal();
+  }
+
   function resetTaiwan() {
     state.progress.taiwan = [];
     saveState();
@@ -1475,13 +1683,13 @@
 
   function updateSettingChips() {
     const specs = [
-      ['taiwan-speech','town-speech','speech','🔊 朗讀','china-speech'],
-      ['taiwan-labels','town-labels','labels','🏷 名稱','china-labels'],
-      ['taiwan-snap','town-snap','snapHint','🧲 正確提示','china-snap'],
-      ['taiwan-magnifier','town-magnifier','magnifier','🔍 放大鏡','china-magnifier']
+      ['taiwan-speech','town-speech','speech','🔊 朗讀','china-speech','world-speech'],
+      ['taiwan-labels','town-labels','labels','🏷 名稱','china-labels','world-labels'],
+      ['taiwan-snap','town-snap','snapHint','🧲 正確提示','china-snap','world-snap'],
+      ['taiwan-magnifier','town-magnifier','magnifier','🔍 放大鏡','china-magnifier','world-magnifier']
     ];
-    specs.forEach(([a,b,key,label,c]) => {
-      [a,b,c].filter(Boolean).forEach(id => {
+    specs.forEach(([a,b,key,label,c,d]) => {
+      [a,b,c,d].filter(Boolean).forEach(id => {
         const el = $('#' + id);
         if (!el) return;
         el.textContent = `${label}：${state.settings[key] ? 'ON' : 'OFF'}`;
@@ -1490,7 +1698,7 @@
     });
     $('#setting-speech').checked = state.settings.speech;
     $('#setting-speech-mode').value = state.settings.speechMode;
-    ['taiwan-speech-mode','town-speech-mode'].forEach(id => {
+    ['taiwan-speech-mode','town-speech-mode','world-speech-mode'].forEach(id => {
       const el = $('#' + id);
       if (el) el.textContent = `🗣 ${TMapSpeech.getProfile(state.settings.speechMode).label}`;
     });
@@ -1508,6 +1716,7 @@
       setSelectedDisplay('county');
       setSelectedDisplay('town');
       setSelectedDisplay('china-province');
+      setSelectedDisplay('world-region');
     }
   }
 
@@ -1547,6 +1756,7 @@
 
   function catalogProgressText(mapId) {
     if (mapId === 'china-provincial') { const p = TMapEngine.progressStatus(33, state.progress.chinaProvincial); return `省級行政區 ${p.done} / ${p.total}`; }
+    if (mapId === 'world') { const p = TMapEngine.progressStatus(11, state.progress.worldRegions); return `世界第一層 ${p.done} / ${p.total}`; }
     if (mapId !== 'taiwan') return '';
     const countyProgress = TMapEngine.progressStatus(22, state.progress.taiwan);
     return `縣市 ${countyProgress.done} / ${countyProgress.total} · 完成縣市探索 ${taiwanCompletedCountyCount()} / 22`;
@@ -1599,7 +1809,7 @@
   }
 
   function updateCatalogProgress() {
-    ['taiwan','china-provincial'].forEach(id => { const el = document.querySelector(`[data-catalog-progress="${id}"]`); if (el) el.textContent = catalogProgressText(id); });
+    ['taiwan','china-provincial','world'].forEach(id => { const el = document.querySelector(`[data-catalog-progress="${id}"]`); if (el) el.textContent = catalogProgressText(id); });
   }
 
   function openPlatformCatalog() {
@@ -1617,6 +1827,16 @@
         updateSettingChips();
         openChinaPuzzle();
       } catch (err) { console.error(err); showSpeechNotice('中國省級行政區圖資沒有成功載入，請重新整理後再試。'); }
+      return;
+    }
+    if (map.id === 'world') {
+      try {
+        await ensureWorldData();
+        const allowed = TMapRegistry.speechModesFor('world');
+        state.settings.speechMode = TMapSpeech.normalizeMode(state.settings.speechMode, allowed);
+        updateSettingChips();
+        openWorldPuzzle();
+      } catch (err) { console.error(err); showSpeechNotice('世界第一層圖資沒有成功載入，請重新整理後再試。'); }
       return;
     }
     if (map.id === 'taiwan') {
@@ -1664,6 +1884,7 @@
       if (action === 'go-home') showScreen('home');
       if (action === 'reset-taiwan') resetTaiwan();
       if (action === 'reset-china') resetChina();
+      if (action === 'reset-world') resetWorld();
       if (action === 'open-help') $('#help-dialog').showModal();
       if (action === 'toggle-theme') toggleTheme();
       if (action === 'toggle-piece-drawer') toggleMobileDrawer(event.target.closest('[data-drawer]')?.dataset.drawer || event.target.dataset.drawer);
@@ -1685,12 +1906,12 @@
     $('#setting-effects').addEventListener('change', () => toggleSetting('effects'));
     $('#setting-theme').addEventListener('change', event => setTheme(event.target.value));
     $('#taiwan-speech').addEventListener('click', () => toggleSetting('speech'));
-    $('#taiwan-speech-mode').addEventListener('click', cycleSpeechMode);
+    $('#taiwan-speech-mode').addEventListener('click', () => cycleSpeechMode('taiwan'));
     $('#taiwan-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#taiwan-snap').addEventListener('click', () => toggleSetting('snapHint'));
     $('#taiwan-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
     $('#town-speech').addEventListener('click', () => toggleSetting('speech'));
-    $('#town-speech-mode').addEventListener('click', cycleSpeechMode);
+    $('#town-speech-mode').addEventListener('click', () => cycleSpeechMode('taiwan'));
     $('#town-labels').addEventListener('click', () => toggleSetting('labels'));
     $('#town-snap').addEventListener('click', () => toggleSetting('snapHint'));
     $('#town-magnifier').addEventListener('click', () => toggleSetting('magnifier'));
@@ -1698,11 +1919,20 @@
     $('#china-labels')?.addEventListener('click', () => toggleSetting('labels'));
     $('#china-snap')?.addEventListener('click', () => toggleSetting('snapHint'));
     $('#china-magnifier')?.addEventListener('click', () => toggleSetting('magnifier'));
+    $('#world-speech')?.addEventListener('click', () => toggleSetting('speech'));
+    $('#world-speech-mode')?.addEventListener('click', () => cycleSpeechMode('world'));
+    $('#world-labels')?.addEventListener('click', () => toggleSetting('labels'));
+    $('#world-snap')?.addEventListener('click', () => toggleSetting('snapHint'));
+    $('#world-magnifier')?.addEventListener('click', () => toggleSetting('magnifier'));
     $('#reset-town').addEventListener('click', resetTown);
     $('#county-search').addEventListener('input', renderCountyList);
     $('#region-filter').addEventListener('change', renderCountyList);
     $('#town-complete-explorer').addEventListener('click', event => { event.preventDefault(); $('#town-complete-dialog').close(); openExplorer(); });
     $('#town-complete-replay').addEventListener('click', event => { event.preventDefault(); $('#town-complete-dialog').close(); resetTown(); });
+    $('#china-complete-catalog')?.addEventListener('click', event => { event.preventDefault(); $('#china-complete-dialog').close(); openPlatformCatalog(); });
+    $('#china-complete-replay')?.addEventListener('click', event => { event.preventDefault(); $('#china-complete-dialog').close(); resetChina(); });
+    $('#world-complete-catalog')?.addEventListener('click', event => { event.preventDefault(); $('#world-complete-dialog').close(); openPlatformCatalog(); });
+    $('#world-complete-replay')?.addEventListener('click', event => { event.preventDefault(); $('#world-complete-dialog').close(); resetWorld(); });
     window.addEventListener('resize', () => {
       syncMobilePuzzleClass();
       if (!isMobileLayout()) {
@@ -1714,7 +1944,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.4</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.4 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.5</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.5 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {
