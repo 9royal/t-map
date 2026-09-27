@@ -37,7 +37,7 @@
       mark: '🌍',
       title: '世界地圖',
       subtitle: '7 大洲＋3 大洋＋北極海 → 各洲國家',
-      description: '第一層七大洲＋太平洋、大西洋、印度洋、北極海已可遊玩；第二層各洲國家拼圖持續建置。',
+      description: 'Equal Earth 世界第一層與依洲分組的國家拼圖皆可遊玩；手機上過小國家第一版先不出題。',
       speechModes: Object.freeze(['mandarin', 'english']),
       levels: Object.freeze([
         Object.freeze({
@@ -54,11 +54,12 @@
         Object.freeze({
           id: 'countries',
           title: '各洲國家',
-          status: 'planned',
+          status: 'ready',
           type: 'polygon-puzzle',
           parent: 'continents-oceans',
           groupBy: 'continent',
-          smallRegionPolicy: 'exclude-initially'
+          smallRegionPolicy: 'exclude-initially',
+          projection: 'Equal Earth'
         })
       ])
     })

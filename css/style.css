@@ -658,7 +658,7 @@ html[data-theme="dark"] {
   .china-inset-grid .island-box { min-width: 164px; scroll-snap-align: start; }
 }
 
-/* v1.05.5: world first layer — seven continents + four teaching ocean zones. */
+/* v1.05.6: Equal Earth world map + continent country puzzles. */
 .world-stage { display: block; }
 .world-map-box {
   min-width: 0;
@@ -671,14 +671,32 @@ html[data-theme="dark"] {
   overflow: hidden;
 }
 .world-map-svg { width: 100%; height: auto; max-height: 72vh; }
+.world-sphere-outline {
+  fill: color-mix(in srgb, var(--map-bg) 92%, var(--accent) 8%);
+  stroke: var(--border);
+  stroke-width: 1.2;
+  pointer-events: none;
+}
+.world-graticule {
+  fill: none;
+  stroke: color-mix(in srgb, var(--border) 68%, transparent);
+  stroke-width: .55;
+  stroke-dasharray: 2.5 4.5;
+  pointer-events: none;
+}
 .world-continent-target { stroke-width: .9; }
 .world-ocean-target:not(.is-hovered):not(.is-near):not(.is-placed) {
   fill: transparent;
   stroke: transparent;
 }
+.world-ocean-target.is-hovered:not(.is-near):not(.is-placed) {
+  fill: color-mix(in srgb, var(--hover-fill) 34%, transparent);
+  stroke: color-mix(in srgb, var(--hover-stroke) 75%, transparent);
+  stroke-dasharray: 7 5;
+}
 .world-ocean-target.is-placed {
-  fill: color-mix(in srgb, var(--placed-fill) 28%, transparent);
-  stroke: color-mix(in srgb, var(--placed-stroke) 70%, transparent);
+  fill: color-mix(in srgb, var(--placed-fill) 24%, transparent);
+  stroke: color-mix(in srgb, var(--placed-stroke) 75%, transparent);
   stroke-dasharray: 8 6;
 }
 .world-map-label {
@@ -688,17 +706,62 @@ html[data-theme="dark"] {
   stroke: var(--map-bg);
   stroke-width: 3px;
   stroke-linejoin: round;
+  pointer-events: none;
 }
 .world-piece-card .world-ocean-piece path {
   fill: none;
   stroke: var(--piece-stroke);
   stroke-width: 4;
 }
+
+.continent-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  padding: 4px 0 18px;
+}
+.continent-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 190px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.continent-card h2 { margin: 4px 0 8px; font-size: clamp(1.25rem, 2.1vw, 1.8rem); }
+.continent-card p { margin: 0; color: var(--muted); }
+.continent-card .button { width: 100%; }
+
+.world-country-context {
+  fill: color-mix(in srgb, var(--map-fill) 62%, transparent);
+  stroke: color-mix(in srgb, var(--map-stroke) 62%, transparent);
+  stroke-width: .8;
+  pointer-events: none;
+}
+.world-country-target { stroke-width: 1; }
+.world-country-label {
+  font-size: 11px;
+  font-weight: 800;
+  paint-order: stroke fill;
+  stroke: var(--map-bg);
+  stroke-width: 3px;
+  pointer-events: none;
+}
+.world-country-piece-card svg path { fill: var(--piece-fill); stroke: var(--piece-stroke); stroke-width: 1.5; }
+
 @media (max-width: 900px) {
   .world-map-box { min-height: 480px; }
+  .continent-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 640px) {
   .world-map-box { min-height: min(56dvh, 470px); }
   .world-map-svg { height: min(56dvh, 470px); }
   .world-map-label { font-size: 11px; }
+  .world-country-label { font-size: 9px; }
+  .continent-card-grid { grid-template-columns: 1fr; gap: 12px; }
+  .continent-card { min-height: 0; padding: 16px; }
 }

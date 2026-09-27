@@ -1,20 +1,33 @@
-# T map v1.05.5 部署
+# T map v1.05.6 部署
 
-GitHub / Cloudflare Pages 維持既有設定：
+## Cloudflare Pages
 
-```text
-Production branch: main
-Build command: npm run build && npm run verify
-Build output directory: dist
-Root directory: 留空
-Node: 22
-```
+- Production branch: `main`
+- Build command: `npm run build && npm run verify`
+- Build output directory: `dist`
+- Node 22 可使用。
 
-建議開發流程：
+## v1.05-testing
 
-1. 在 `v1.05-testing` 套用更新並 Push。
-2. 等 Cloudflare 建立 Preview deployment。
-3. 先驗收中國最後一塊的完成提示／聲音，再驗收世界第一層 11 塊。
-4. 確認手機／平板／PC 與臺灣／中國回歸均正常後，才 PR 合併 `main`。
+先在 `v1.05-testing` Push 並等待 Cloudflare Preview 成功，再以手機、平板與桌機測試。
 
-v1.05.5 新增建置依賴 `@svg-maps/world@2.0.0` 與 `countries-list@3.4.1`，Cloudflare 應透過 `npm install` 取得並在 build 時轉為 `dist/data/world-regions.json`。學生端執行時不直接連 npm。
+v1.05.6 新增建置依賴 `world-atlas@2.0.2`；Cloudflare 的 `npm install` 需能取得：
+
+- `world-atlas/countries-50m.json`
+- `countries-list@3.4.1`
+- 既有 D3、TopoJSON、taiwan-atlas、@svg-maps/china
+
+Build 會產生：
+
+- `dist/data/world-regions.json`：Equal Earth 世界第一層 metadata、洲幾何與海洋感應區設定。
+- `dist/data/world-countries.json`：依洲分組的國家幾何、繁中／英文名稱與可玩標記。
+
+學生端所有 JSON 與 JS 都由同一個 Pages 站台提供，不使用執行期 CDN。
+
+## Preview 驗收優先順序
+
+1. 世界主圖形狀是否為 Equal Earth，底部是否完整看到南極大陸。
+2. 四海洋在多個主要海盆位置都能觸發正確提示與放置。
+3. 完成 11 / 11 後可進入洲別選擇。
+4. 六個有國家的洲可進入國家拼圖；南極洲顯示無國家拼圖。
+5. 國家層手機拖曳、點選、放大鏡、提示、中文／English 朗讀與進度是否正常。

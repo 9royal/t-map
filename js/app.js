@@ -1,12 +1,13 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.5';
+  const VERSION = '1.05.6';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
   const CHINA_URL = 'data/china-provinces.json';
   const WORLD_URL = 'data/world-regions.json';
+  const WORLD_COUNTRIES_URL = 'data/world-countries.json';
   const ISLANDS = new Set(['澎湖縣', '金門縣', '連江縣']);
   const REGION_MAP = {
     '基隆市':'north','臺北市':'north','新北市':'north','桃園市':'north','新竹市':'north','新竹縣':'north','宜蘭縣':'north',
@@ -18,21 +19,23 @@
 
   const state = {
     settings: { speech: true, speechMode: 'mandarin', labels: true, snapHint: true, magnifier: true, effects: true, theme: 'light' },
-    progress: { taiwan: [], towns: {}, chinaProvincial: [], worldRegions: [] },
-    last: { screen: 'home', county: null },
-    data: { counties: [], towns: [], china: null, world: null },
+    progress: { taiwan: [], towns: {}, chinaProvincial: [], worldRegions: [], worldCountries: {} },
+    last: { screen: 'home', county: null, worldContinent: null },
+    data: { counties: [], towns: [], china: null, world: null, worldCountries: null },
     selected: null,
     currentCounty: null,
+    currentWorldContinent: null,
     drag: null
   };
 
-  const screens = ['catalog','home','taiwan','complete','explorer','town','china','world'];
+  const screens = ['catalog','home','taiwan','complete','explorer','town','china','world','world-continents','world-country'];
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => Array.from(document.querySelectorAll(sel));
   let audioContext = null;
   let taiwanDataPromise = null;
   let chinaDataPromise = null;
   let worldDataPromise = null;
+  let worldCountriesDataPromise = null;
   const MOBILE_BREAKPOINT = 640;
   const MAGNIFIER_SCALE = 2.35;
   // CSS crosshair: 12px content + 2px border on each side = 16px outer diameter.
@@ -72,7 +75,7 @@
 
   function syncMobilePuzzleClass() {
     const active = $('.screen.is-active')?.id;
-    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town' || active === 'screen-china' || active === 'screen-world'));
+    document.body.classList.toggle('mobile-puzzle-active', isMobileLayout() && (active === 'screen-taiwan' || active === 'screen-town' || active === 'screen-china' || active === 'screen-world' || active === 'screen-world-country'));
   }
 
   function setSelectedDisplay(level, name = null) {
@@ -80,6 +83,7 @@
     const ids = level === 'county' ? ['#selected-name', '#taiwan-mobile-selected']
       : level === 'town' ? ['#town-selected-name', '#town-mobile-selected']
       : level === 'china-province' ? ['#china-selected-name', '#china-mobile-selected']
+      : level === 'world-country' ? ['#world-country-selected-name', '#world-country-mobile-selected']
       : ['#world-selected-name', '#world-mobile-selected'];
     ids.forEach(id => { const el = $(id); if (el) el.textContent = text; });
   }
@@ -241,11 +245,25 @@
     return Number.isFinite(localDistance) ? localDistance * metrics.scale : Infinity;
   }
 
+  function pointInsideWorldLand(svg, clientX, clientY) {
+    if (!svg || !Number.isFinite(clientX) || !Number.isFinite(clientY) || !window.TMapHints?.planarContains) return false;
+    const local = clientToSvgPoint(svg, clientX, clientY);
+    if (!local) return false;
+    return Array.from(svg.querySelectorAll('.world-continent-target')).some(landPath => {
+      const geometry = landPath.__tmapProjectedGeometry;
+      return !!(geometry && TMapHints.planarContains(geometry, local.x, local.y));
+    });
+  }
+
   function pointInsideTarget(path, clientX, clientY) {
     if (!path || !Number.isFinite(clientX) || !Number.isFinite(clientY)) return false;
     const svg = path.ownerSVGElement;
     const projectedGeometry = path.__tmapProjectedGeometry;
     const local = clientToSvgPoint(svg, clientX, clientY);
+
+    // Ocean teaching zones are deliberately broad, but land must not count as ocean.
+    // The land mask uses the same Equal Earth projected continent geometry.
+    if (path.dataset.worldKind === 'ocean' && pointInsideWorldLand(svg, clientX, clientY)) return false;
 
     // Primary test: use the exact geometry that was projected to draw this SVG.
     // This is planar, ring-orientation independent, and works identically for
@@ -274,6 +292,7 @@
   }
 
   function targetBoundaryDistance(path, clientX, clientY, maxRadius = Infinity) {
+    if (path?.dataset?.worldKind === 'ocean' && pointInsideWorldLand(path.ownerSVGElement, clientX, clientY)) return Infinity;
     const projected = projectedBoundaryDistance(path, clientX, clientY);
     if (Number.isFinite(projected)) return projected;
     return TMapHints.geometryDistance(path, clientX, clientY, maxRadius);
@@ -306,7 +325,7 @@
   }
 
   function nearestTargetAt(x, y, level, radius = 28, scope = null) {
-    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map') : level === 'china-province' ? $('#china-map-stage') : $('#world-map-stage'));
+    const root = scope || (level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map') : level === 'china-province' ? $('#china-map-stage') : level === 'world-country' ? $('#world-country-map-stage') : $('#world-map-stage'));
     if (!root) return null;
     let best = null;
     let bestDistance = Infinity;
@@ -619,6 +638,7 @@
         state.progress.towns = saved.progress.towns || {};
         state.progress.chinaProvincial = Array.isArray(saved.progress.chinaProvincial) ? saved.progress.chinaProvincial : [];
         state.progress.worldRegions = Array.isArray(saved.progress.worldRegions) ? saved.progress.worldRegions : [];
+        state.progress.worldCountries = saved.progress.worldCountries && typeof saved.progress.worldCountries === 'object' ? saved.progress.worldCountries : {};
       }
       if (saved.last) Object.assign(state.last, saved.last);
     } catch (err) {
@@ -646,13 +666,14 @@
     if (remember) {
       state.last.screen = name;
       state.last.county = state.currentCounty;
+      state.last.worldContinent = state.currentWorldContinent;
       saveState();
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
   function feedbackForLevel(level) {
-    return level === 'county' ? $('#taiwan-feedback') : level === 'town' ? $('#town-feedback') : level === 'china-province' ? $('#china-feedback') : $('#world-feedback');
+    return level === 'county' ? $('#taiwan-feedback') : level === 'town' ? $('#town-feedback') : level === 'china-province' ? $('#china-feedback') : level === 'world-country' ? $('#world-country-feedback') : $('#world-feedback');
   }
 
   function setFeedback(el, text, type = '') {
@@ -681,7 +702,7 @@
   }
 
   function spokenRegionName(feature, level, fallback = '') {
-    if (level === 'world-region' && state.settings.speechMode === 'english') {
+    if ((level === 'world-region' || level === 'world-country') && state.settings.speechMode === 'english') {
       return String(feature?.nameEn || fallback || regionName(feature, level)).trim();
     }
     return fallback || regionName(feature, level);
@@ -800,6 +821,27 @@
     return worldDataPromise;
   }
 
+  async function ensureWorldCountriesData() {
+    if (state.data.worldCountries?.continents?.length === 7) return state.data.worldCountries;
+    if (!worldCountriesDataPromise) worldCountriesDataPromise = fetch(WORLD_COUNTRIES_URL)
+      .then(r => { if (!r.ok) throw new Error('世界國家圖資下載失敗。'); return r.json(); })
+      .then(data => {
+        if (data?.continents?.length !== 7) throw new Error('世界國家圖資不是七大洲分組。');
+        state.data.worldCountries = data;
+        return data;
+      })
+      .catch(err => { worldCountriesDataPromise = null; throw err; });
+    return worldCountriesDataPromise;
+  }
+
+  function createEqualEarthProjection(width = 1000, height = 600, object = { type:'Sphere' }, pad = 18) {
+    return d3.geoEqualEarth().fitExtent([[pad, pad], [width - pad, height - pad]], object);
+  }
+
+  function featureFromRecord(record) {
+    return { type:'Feature', properties:{ name: record.name, nameEn: record.nameEn, iso2: record.iso2, playable: record.playable }, geometry: record.geometry };
+  }
+
   function createProjection(features, width, height, pad = 16) {
     return d3.geoMercator().fitExtent([[pad, pad], [width - pad, height - pad]], { type:'FeatureCollection', features });
   }
@@ -873,11 +915,11 @@
   }
 
   function activeMapStage(level) {
-    return level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map').closest('.town-map-wrap') : level === 'china-province' ? $('#china-map-stage') : $('#world-map-stage');
+    return level === 'county' ? $('#taiwan-map-stage') : level === 'town' ? $('#town-map').closest('.town-map-wrap') : level === 'china-province' ? $('#china-map-stage') : level === 'world-country' ? $('#world-country-map-stage') : $('#world-map-stage');
   }
 
   function hitRegionAt(x, y, level) {
-    const screen = level === 'county' ? $('#screen-taiwan') : level === 'town' ? $('#screen-town') : level === 'china-province' ? $('#screen-china') : $('#screen-world');
+    const screen = level === 'county' ? $('#screen-taiwan') : level === 'town' ? $('#screen-town') : level === 'china-province' ? $('#screen-china') : level === 'world-country' ? $('#screen-world-country') : $('#screen-world');
     const stack = typeof document.elementsFromPoint === 'function'
       ? document.elementsFromPoint(x, y)
       : [document.elementFromPoint(x, y)].filter(Boolean);
@@ -896,7 +938,7 @@
   }
 
   function correctTargetPaths(name, level) {
-    const root = level === 'town' ? $('#town-map') : level === 'county' ? $('#taiwan-map-stage') : level === 'china-province' ? $('#china-map-stage') : $('#world-map-stage');
+    const root = level === 'town' ? $('#town-map') : level === 'county' ? $('#taiwan-map-stage') : level === 'china-province' ? $('#china-map-stage') : level === 'world-country' ? $('#world-country-map-stage') : $('#world-map-stage');
     if (!root) return [];
     return Array.from(root.querySelectorAll(`.target-region[data-level="${level}"]`))
       .filter(el => el.dataset.regionName === name);
@@ -1094,7 +1136,7 @@
     const targetName = event.currentTarget.dataset.regionName;
     const level = event.currentTarget.dataset.level;
     if (!state.selected || state.selected.level !== level) {
-      const spoken = level === 'world-region' && state.settings.speechMode === 'english'
+      const spoken = (level === 'world-region' || level === 'world-country') && state.settings.speechMode === 'english'
         ? (event.currentTarget.dataset.regionNameEn || targetName) : targetName;
       speak(spoken);
       return;
@@ -1145,6 +1187,23 @@
       renderWorldPieces();
       updateWorldProgress();
       if (state.progress.worldRegions.length === 11) { playCelebrationSound(); setTimeout(() => showWorldComplete(false), 300); }
+    } else if (level === 'world-country') {
+      const continent = worldContinentData();
+      const feature = state.selected.feature;
+      if (!continent) return;
+      const progress = worldCountryProgress(continent);
+      if (!progress.includes(name)) progress.push(name);
+      speak(spokenRegionName(feature, level, name));
+      setFeedback($('#world-country-feedback'), `答對了：${name}！`, 'good');
+      state.selected = null;
+      saveState();
+      renderWorldCountryMap();
+      renderWorldCountryPieces();
+      updateWorldCountryProgress();
+      if (progress.length === continent.playableCount) {
+        playCelebrationSound();
+        setTimeout(() => showWorldCountryComplete(continent), 300);
+      }
     } else {
       const county = state.currentCounty;
       state.progress.towns[county] ||= [];
@@ -1300,6 +1359,10 @@
     } catch (_) {}
   }
 
+  function worldFeatureCollection(item) {
+    return { type:'FeatureCollection', features:(item?.features || []).map(featureFromRecord) };
+  }
+
   function renderWorldPreview(item) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     svg.setAttribute('aria-hidden', 'true');
@@ -1319,15 +1382,17 @@
       svg.append(group);
       return svg;
     }
-    svg.setAttribute('viewBox', state.data.world?.viewBox || '0 0 1010 666');
+    svg.setAttribute('viewBox', '0 0 112 76');
+    const collection = worldFeatureCollection(item);
+    const projection = createEqualEarthProjection(112, 76, collection, 5);
+    const path = d3.geoPath(projection);
     const group = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-    (item.paths || []).forEach(part => {
-      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
-      path.setAttribute('d', part.d);
-      group.append(path);
+    collection.features.forEach(feature => {
+      const el = document.createElementNS('http://www.w3.org/2000/svg','path');
+      el.setAttribute('d', path(feature) || '');
+      group.append(el);
     });
     svg.append(group);
-    requestAnimationFrame(() => fitSvgToChildren(svg, 4));
     return svg;
   }
 
@@ -1357,12 +1422,9 @@
     });
   }
 
-  function attachWorldPathGeometry(pathEl, d) {
-    try { if (typeof Path2D !== 'undefined') pathEl.__tmapPath2D = new Path2D(d); } catch (_) {}
-  }
-
-  function worldTargetPath(d, item, extraClass = '') {
+  function worldTargetFeature(feature, item, projection, extraClass = '') {
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const d = d3.geoPath(projection)(feature) || '';
     path.setAttribute('d', d);
     const placed = state.progress.worldRegions.includes(item.name);
     path.setAttribute('class', `target-region ${extraClass}${placed ? ' is-placed' : ''}`.trim());
@@ -1371,8 +1433,16 @@
     path.dataset.regionName = item.name;
     path.dataset.regionNameEn = item.nameEn || item.name;
     path.dataset.level = 'world-region';
+    path.dataset.worldKind = item.kind || 'continent';
     path.setAttribute('aria-label', item.name);
-    attachWorldPathGeometry(path, d);
+    // Continents use cached projected polygon geometry for precise interior tests.
+    // Ocean teaching zones can cross the antimeridian, so keep their exact rendered
+    // SVG Path2D instead of flattening lon/lat rings into a naive planar polygon.
+    if (item.kind === 'ocean') {
+      try { if (typeof Path2D !== 'undefined' && d) path.__tmapPath2D = new Path2D(d); } catch (_) {}
+    } else {
+      path.__tmapProjectedGeometry = projectFeatureGeometry(feature, projection);
+    }
     path.addEventListener('pointerenter', () => { if (!state.drag && !path.classList.contains('is-placed')) setRegionClass(path, 'is-hovered', true); });
     path.addEventListener('pointerleave', () => { if (!state.drag) setRegionClass(path, 'is-hovered', false); });
     path.addEventListener('click', targetClick);
@@ -1380,27 +1450,52 @@
     return path;
   }
 
+  function worldOceanFeatures(ocean) {
+    return (ocean.circles || []).map(circle => d3.geoCircle().center(circle.center).radius(circle.radius).precision(4)());
+  }
+
   function renderWorldMap() {
     const svgEl = $('#world-main-map');
     if (!svgEl || !state.data.world) return;
     svgEl.replaceChildren();
-    svgEl.setAttribute('viewBox', state.data.world.viewBox || '0 0 1010 666');
+    const width = 1000, height = 600;
+    svgEl.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svgEl.dataset.baseViewBox = svgEl.getAttribute('viewBox');
     mobileMapStates.delete(svgEl);
+    const projection = createEqualEarthProjection(width, height, { type:'Sphere' }, 20);
+    svgEl.__tmapProjection = projection;
+    const geoPath = d3.geoPath(projection);
 
+    const sphere = document.createElementNS('http://www.w3.org/2000/svg','path');
+    sphere.setAttribute('class','world-sphere-outline');
+    sphere.setAttribute('d', geoPath({type:'Sphere'}) || '');
+    svgEl.append(sphere);
+
+    const graticule = document.createElementNS('http://www.w3.org/2000/svg','path');
+    graticule.setAttribute('class','world-graticule');
+    graticule.setAttribute('d', geoPath(d3.geoGraticule10()) || '');
+    svgEl.append(graticule);
+
+    // Ocean hit zones go below land so the visible map keeps geographic context.
     (state.data.world.oceans || []).forEach(ocean => {
-      (ocean.zones || []).forEach(zone => svgEl.append(worldTargetPath(zone.d, ocean, 'world-ocean-target')));
+      worldOceanFeatures(ocean).forEach(feature => svgEl.append(worldTargetFeature(feature, ocean, projection, 'world-ocean-target')));
     });
     (state.data.world.continents || []).forEach(continent => {
-      (continent.paths || []).forEach(part => svgEl.append(worldTargetPath(part.d, continent, 'world-continent-target')));
+      (continent.features || []).forEach(record => {
+        const feature = featureFromRecord(record);
+        svgEl.append(worldTargetFeature(feature, continent, projection, 'world-continent-target'));
+      });
     });
 
     worldPieces().filter(item => state.progress.worldRegions.includes(item.name)).forEach(item => {
-      (item.labelPoints || []).forEach(([x,y]) => {
+      const points = item.kind === 'ocean' ? (item.labelLonLat || []) : [item.labelLonLat];
+      points.filter(Boolean).forEach(lonLat => {
+        const pos = projection(lonLat);
+        if (!pos) return;
         const text = document.createElementNS('http://www.w3.org/2000/svg','text');
         text.setAttribute('class','map-label world-map-label');
         text.dataset.regionName = item.name; text.dataset.level = 'world-region';
-        text.setAttribute('text-anchor','middle'); text.setAttribute('x', x); text.setAttribute('y', y);
+        text.setAttribute('text-anchor','middle'); text.setAttribute('x', pos[0]); text.setAttribute('y', pos[1]);
         text.style.display = state.settings.labels ? '' : 'none';
         text.textContent = item.name;
         svgEl.append(text);
@@ -1415,6 +1510,8 @@
     $('#world-remaining').textContent = `${11 - n} 塊`;
     setSelectedDisplay('world-region');
     updateCatalogProgress();
+    const countriesButton = $('#world-open-countries');
+    if (countriesButton) countriesButton.disabled = n < 11;
   }
 
   function openWorldPuzzle() {
@@ -1424,6 +1521,169 @@
 
   function resetWorld() {
     state.progress.worldRegions = []; saveState(); openWorldPuzzle();
+  }
+
+  function worldContinentData(id = state.currentWorldContinent) {
+    return state.data.worldCountries?.continents?.find(item => item.id === id || item.code === id) || null;
+  }
+
+  function playableWorldCountries(continent = worldContinentData()) {
+    return (continent?.countries || []).filter(country => country.playable);
+  }
+
+  function worldCountryProgress(continent = worldContinentData()) {
+    if (!continent) return [];
+    state.progress.worldCountries[continent.id] ||= [];
+    return state.progress.worldCountries[continent.id];
+  }
+
+  function renderWorldContinentCatalog() {
+    const host = $('#world-continent-list');
+    if (!host || !state.data.worldCountries) return;
+    host.innerHTML = '';
+    state.data.worldCountries.continents.forEach(continent => {
+      const done = worldCountryProgress(continent).length;
+      const article = document.createElement('article');
+      article.className = 'continent-card';
+      article.innerHTML = `<div><p class="eyebrow">${continent.nameEn}</p><h2>${continent.name}</h2><p>${continent.playableCount ? `可玩 ${continent.playableCount} 國 · 完成 ${done} / ${continent.playableCount}` : '本層無國家拼圖'}</p></div>`;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = continent.playableCount ? 'button primary' : 'button';
+      if (continent.playableCount) {
+        button.textContent = done === continent.playableCount ? '再次挑戰' : '進入國家拼圖';
+        button.dataset.action = 'open-world-continent';
+        button.dataset.continentId = continent.id;
+      } else {
+        button.textContent = '南極洲沒有主權國家';
+        button.disabled = true;
+      }
+      article.append(button);
+      host.append(article);
+    });
+  }
+
+  async function openWorldContinentCatalog() {
+    try {
+      await ensureWorldCountriesData();
+      state.selected = null;
+      state.currentWorldContinent = null;
+      renderWorldContinentCatalog();
+      showScreen('world-continents');
+    } catch (err) {
+      console.error(err);
+      showSpeechNotice('世界國家圖資沒有成功載入，請重新整理後再試。');
+    }
+  }
+
+  function renderWorldCountryPreview(country) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 112 76'); svg.setAttribute('aria-hidden','true');
+    const feature = featureFromRecord(country);
+    const projection = createEqualEarthProjection(112, 76, feature, 6);
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', d3.geoPath(projection)(feature) || '');
+    svg.append(path);
+    return svg;
+  }
+
+  function renderWorldCountryPieces() {
+    const container = $('#world-country-piece-list');
+    const continent = worldContinentData();
+    if (!container || !continent) return;
+    const placed = worldCountryProgress(continent);
+    const remaining = shuffle(playableWorldCountries(continent).filter(country => !placed.includes(country.name)));
+    container.innerHTML = '';
+    if (!remaining.length) { container.innerHTML = '<div class="empty-state">全部完成 ✓</div>'; return; }
+    remaining.forEach(country => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'piece-card world-country-piece-card' + (state.settings.labels ? '' : ' hide-label');
+      button.dataset.pieceName = country.name;
+      button.append(renderWorldCountryPreview(country));
+      const label = document.createElement('span'); label.className='piece-name'; label.textContent=country.name; button.append(label);
+      button.addEventListener('click', event => {
+        if (button.dataset.suppressClick) { event.preventDefault(); event.stopPropagation(); delete button.dataset.suppressClick; return; }
+        selectPiece(country, 'world-country', button);
+      });
+      button.addEventListener('pointerdown', event => {
+        if (event.pointerType === 'touch' && !event.target.closest('svg')) return;
+        beginDrag(event, country, 'world-country', button);
+      });
+      container.append(button);
+    });
+  }
+
+  function worldCountryTargetPath(country, projection, placedNames) {
+    const feature = featureFromRecord(country);
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d', d3.geoPath(projection)(feature) || '');
+    path.setAttribute('class', `target-region world-country-target${placedNames.includes(country.name) ? ' is-placed' : ''}`);
+    path.setAttribute('tabindex','0'); path.setAttribute('role','button');
+    path.dataset.regionName=country.name; path.dataset.regionNameEn=country.nameEn || country.name; path.dataset.level='world-country';
+    path.setAttribute('aria-label',country.name);
+    path.__tmapProjectedGeometry = projectFeatureGeometry(feature, projection);
+    path.addEventListener('pointerenter', () => { if (!state.drag && !path.classList.contains('is-placed')) setRegionClass(path,'is-hovered',true); });
+    path.addEventListener('pointerleave', () => { if (!state.drag) setRegionClass(path,'is-hovered',false); });
+    path.addEventListener('click',targetClick);
+    path.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); targetClick({currentTarget:path}); } });
+    return path;
+  }
+
+  function renderWorldCountryMap() {
+    const svgEl = $('#world-country-map');
+    const continent = worldContinentData();
+    if (!svgEl || !continent) return;
+    const width=1000, height=680;
+    svgEl.replaceChildren(); svgEl.setAttribute('viewBox',`0 0 ${width} ${height}`); svgEl.dataset.baseViewBox=svgEl.getAttribute('viewBox'); mobileMapStates.delete(svgEl);
+    const allRecords = continent.countries || [];
+    const allFeatures = allRecords.map(featureFromRecord);
+    const collection = {type:'FeatureCollection',features:allFeatures};
+    const projection = createEqualEarthProjection(width,height,collection,28);
+    svgEl.__tmapProjection = projection;
+    const pathGen = d3.geoPath(projection);
+    const placed = worldCountryProgress(continent);
+
+    // Keep omitted microstates visible as geographic context, but not targetable.
+    allRecords.filter(country => !country.playable).forEach(country => {
+      const feature=featureFromRecord(country);
+      const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('class','world-country-context'); path.setAttribute('d',pathGen(feature)||''); path.setAttribute('aria-hidden','true');
+      svgEl.append(path);
+    });
+    playableWorldCountries(continent).forEach(country => svgEl.append(worldCountryTargetPath(country,projection,placed)));
+    playableWorldCountries(continent).filter(country => placed.includes(country.name)).forEach(country => {
+      const feature=featureFromRecord(country); const centroid=pathGen.centroid(feature);
+      if (!centroid.every(Number.isFinite)) return;
+      const text=document.createElementNS('http://www.w3.org/2000/svg','text');
+      text.setAttribute('class','map-label world-country-label'); text.dataset.regionName=country.name; text.dataset.level='world-country';
+      text.setAttribute('text-anchor','middle'); text.setAttribute('x',centroid[0]); text.setAttribute('y',centroid[1]); text.style.display=state.settings.labels?'':'none'; text.textContent=country.name;
+      svgEl.append(text);
+    });
+    bindMobileMap(svgEl,'world-country');
+  }
+
+  function updateWorldCountryProgress() {
+    const continent=worldContinentData(); if (!continent) return;
+    const done=worldCountryProgress(continent).length; const total=continent.playableCount;
+    $('#world-country-progress').textContent=`完成 ${done} / ${total}`;
+    $('#world-country-remaining').textContent=`${Math.max(0,total-done)} 塊`;
+    $('#world-country-title').textContent=`${continent.name}國家拼圖`;
+    $('#world-country-map-heading').textContent=`${continent.name}國家地圖`;
+    $('#world-country-excluded-note').textContent=continent.excludedCount ? `本版另有 ${continent.excludedCount} 個過小或不適合作為手機拼圖的地區／國家暫不出題。` : '';
+    setSelectedDisplay('world-country');
+    renderWorldContinentCatalog();
+  }
+
+  function openWorldCountryPuzzle(continentId) {
+    const continent=worldContinentData(continentId);
+    if (!continent || !continent.playableCount) return;
+    state.currentWorldContinent=continent.id; state.currentCounty=null; state.selected=null; clearNearTargets();
+    state.settings.speechMode=TMapSpeech.normalizeMode(state.settings.speechMode,TMapRegistry.speechModesFor('world'));
+    renderWorldCountryMap(); renderWorldCountryPieces(); updateWorldCountryProgress(); updateSettingChips(); showScreen('world-country');
+  }
+
+  function resetWorldCountry() {
+    const continent=worldContinentData(); if (!continent) return;
+    state.progress.worldCountries[continent.id]=[]; saveState(); openWorldCountryPuzzle(continent.id);
   }
 
 
@@ -1668,6 +1928,13 @@
     $('#world-complete-dialog')?.showModal();
   }
 
+  function showWorldCountryComplete(continent) {
+    if (!continent) return;
+    $('#world-country-complete-title').textContent = `🎉 ${continent.name}完成！`;
+    $('#world-country-complete-text').textContent = `你已完成 ${continent.playableCount} / ${continent.playableCount} 個本版可玩的國家。`;
+    $('#world-country-complete-dialog')?.showModal();
+  }
+
   function resetTaiwan() {
     state.progress.taiwan = [];
     saveState();
@@ -1683,22 +1950,22 @@
 
   function updateSettingChips() {
     const specs = [
-      ['taiwan-speech','town-speech','speech','🔊 朗讀','china-speech','world-speech'],
-      ['taiwan-labels','town-labels','labels','🏷 名稱','china-labels','world-labels'],
-      ['taiwan-snap','town-snap','snapHint','🧲 正確提示','china-snap','world-snap'],
-      ['taiwan-magnifier','town-magnifier','magnifier','🔍 放大鏡','china-magnifier','world-magnifier']
+      { ids:['taiwan-speech','town-speech','china-speech','world-speech','world-country-speech'], key:'speech', label:'🔊 朗讀' },
+      { ids:['taiwan-labels','town-labels','china-labels','world-labels','world-country-labels'], key:'labels', label:'🏷 名稱' },
+      { ids:['taiwan-snap','town-snap','china-snap','world-snap','world-country-snap'], key:'snapHint', label:'🧲 正確提示' },
+      { ids:['taiwan-magnifier','town-magnifier','china-magnifier','world-magnifier','world-country-magnifier'], key:'magnifier', label:'🔍 放大鏡' }
     ];
-    specs.forEach(([a,b,key,label,c,d]) => {
-      [a,b,c,d].filter(Boolean).forEach(id => {
+    specs.forEach(spec => {
+      spec.ids.forEach(id => {
         const el = $('#' + id);
         if (!el) return;
-        el.textContent = `${label}：${state.settings[key] ? 'ON' : 'OFF'}`;
-        el.classList.toggle('is-on', state.settings[key]);
+        el.textContent = `${spec.label}：${state.settings[spec.key] ? 'ON' : 'OFF'}`;
+        el.classList.toggle('is-on', state.settings[spec.key]);
       });
     });
     $('#setting-speech').checked = state.settings.speech;
     $('#setting-speech-mode').value = state.settings.speechMode;
-    ['taiwan-speech-mode','town-speech-mode','world-speech-mode'].forEach(id => {
+    ['taiwan-speech-mode','town-speech-mode','world-speech-mode','world-country-speech-mode'].forEach(id => {
       const el = $('#' + id);
       if (el) el.textContent = `🗣 ${TMapSpeech.getProfile(state.settings.speechMode).label}`;
     });
@@ -1717,6 +1984,7 @@
       setSelectedDisplay('town');
       setSelectedDisplay('china-province');
       setSelectedDisplay('world-region');
+      setSelectedDisplay('world-country');
     }
   }
 
@@ -1756,7 +2024,7 @@
 
   function catalogProgressText(mapId) {
     if (mapId === 'china-provincial') { const p = TMapEngine.progressStatus(33, state.progress.chinaProvincial); return `省級行政區 ${p.done} / ${p.total}`; }
-    if (mapId === 'world') { const p = TMapEngine.progressStatus(11, state.progress.worldRegions); return `世界第一層 ${p.done} / ${p.total}`; }
+    if (mapId === 'world') { const p = TMapEngine.progressStatus(11, state.progress.worldRegions); const countryDone = Object.values(state.progress.worldCountries || {}).reduce((sum, list) => sum + (Array.isArray(list) ? list.length : 0), 0); return `世界第一層 ${p.done} / ${p.total}${countryDone ? ` · 國家 ${countryDone} 已完成` : ''}`; }
     if (mapId !== 'taiwan') return '';
     const countyProgress = TMapEngine.progressStatus(22, state.progress.taiwan);
     return `縣市 ${countyProgress.done} / ${countyProgress.total} · 完成縣市探索 ${taiwanCompletedCountyCount()} / 22`;
@@ -1885,6 +2153,10 @@
       if (action === 'reset-taiwan') resetTaiwan();
       if (action === 'reset-china') resetChina();
       if (action === 'reset-world') resetWorld();
+      if (action === 'open-world-countries') openWorldContinentCatalog();
+      if (action === 'open-world-continent') openWorldCountryPuzzle(event.target.closest('[data-continent-id]')?.dataset.continentId || event.target.dataset.continentId);
+      if (action === 'go-world-continents') openWorldContinentCatalog();
+      if (action === 'reset-world-country') resetWorldCountry();
       if (action === 'open-help') $('#help-dialog').showModal();
       if (action === 'toggle-theme') toggleTheme();
       if (action === 'toggle-piece-drawer') toggleMobileDrawer(event.target.closest('[data-drawer]')?.dataset.drawer || event.target.dataset.drawer);
@@ -1924,6 +2196,11 @@
     $('#world-labels')?.addEventListener('click', () => toggleSetting('labels'));
     $('#world-snap')?.addEventListener('click', () => toggleSetting('snapHint'));
     $('#world-magnifier')?.addEventListener('click', () => toggleSetting('magnifier'));
+    $('#world-country-speech')?.addEventListener('click', () => toggleSetting('speech'));
+    $('#world-country-speech-mode')?.addEventListener('click', () => cycleSpeechMode('world'));
+    $('#world-country-labels')?.addEventListener('click', () => toggleSetting('labels'));
+    $('#world-country-snap')?.addEventListener('click', () => toggleSetting('snapHint'));
+    $('#world-country-magnifier')?.addEventListener('click', () => toggleSetting('magnifier'));
     $('#reset-town').addEventListener('click', resetTown);
     $('#county-search').addEventListener('input', renderCountyList);
     $('#region-filter').addEventListener('change', renderCountyList);
@@ -1933,6 +2210,9 @@
     $('#china-complete-replay')?.addEventListener('click', event => { event.preventDefault(); $('#china-complete-dialog').close(); resetChina(); });
     $('#world-complete-catalog')?.addEventListener('click', event => { event.preventDefault(); $('#world-complete-dialog').close(); openPlatformCatalog(); });
     $('#world-complete-replay')?.addEventListener('click', event => { event.preventDefault(); $('#world-complete-dialog').close(); resetWorld(); });
+    $('#world-complete-countries')?.addEventListener('click', event => { event.preventDefault(); $('#world-complete-dialog').close(); openWorldContinentCatalog(); });
+    $('#world-country-complete-continents')?.addEventListener('click', event => { event.preventDefault(); $('#world-country-complete-dialog').close(); openWorldContinentCatalog(); });
+    $('#world-country-complete-replay')?.addEventListener('click', event => { event.preventDefault(); $('#world-country-complete-dialog').close(); resetWorldCountry(); });
     window.addEventListener('resize', () => {
       syncMobilePuzzleClass();
       if (!isMobileLayout()) {
@@ -1944,7 +2224,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.5</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.5 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.6</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.6 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

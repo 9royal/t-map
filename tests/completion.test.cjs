@@ -26,3 +26,10 @@ test('celebration audio resumes AudioContext before scheduling notes', () => {
   assert.match(app, /await ctx\.resume\(\)/);
   assert.match(app, /const notes = \[523\.25, 659\.25, 783\.99, 1046\.5\]/);
 });
+
+test('World country layer completes a continent with celebration and next-continent dialog', () => {
+  assert.match(app, /level === 'world-country'/);
+  assert.match(app, /showWorldCountryComplete\(continent\)/);
+  assert.match(html, /id="world-country-complete-dialog"/);
+  assert.match(html, /id="world-country-complete-continents"/);
+});

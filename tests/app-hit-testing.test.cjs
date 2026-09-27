@@ -42,10 +42,24 @@ test('China SVG paths use Path2D interior hit testing and the shared drag pipeli
   assert.match(app, /renderChinaTargetPath\(\$\('#inset-macau'\)/);
 });
 
-test('World first layer shares drag, grouped target and local-data pipeline', () => {
+test('World first layer uses Equal Earth, broad ocean circles and the shared drag pipeline', () => {
   assert.match(app, /const WORLD_URL = 'data\/world-regions\.json'/);
+  assert.match(app, /d3\.geoEqualEarth\(\)/);
+  assert.match(app, /d3\.geoCircle\(\)\.center\(circle\.center\)\.radius\(circle\.radius\)/);
   assert.match(app, /beginDrag\(event,\s*item,\s*'world-region'/);
   assert.match(app, /function renderWorldMap\(\)/);
-  assert.match(app, /worldTargetPath\(zone\.d,\s*ocean/);
+  assert.match(app, /worldTargetFeature\(feature,\s*ocean,\s*projection/);
+  assert.match(app, /item\.kind === 'ocean'/);
+  assert.match(app, /path\.__tmapPath2D = new Path2D\(d\)/);
+  assert.match(app, /function pointInsideWorldLand\(svg, clientX, clientY\)/);
+  assert.match(app, /path\.dataset\.worldKind === 'ocean'/);
   assert.match(app, /correctTargetPaths\(name,\s*level\)\.forEach/);
+});
+
+test('World country layer is wired to local data, Equal Earth and shared hit testing', () => {
+  assert.match(app, /const WORLD_COUNTRIES_URL = 'data\/world-countries\.json'/);
+  assert.match(app, /function renderWorldCountryMap\(\)/);
+  assert.match(app, /beginDrag\(event,\s*country,\s*'world-country'/);
+  assert.match(app, /data-level='world-country'|dataset\.level='world-country'/);
+  assert.match(app, /createEqualEarthProjection\(width,height,collection/);
 });
