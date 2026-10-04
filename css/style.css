@@ -658,7 +658,7 @@ html[data-theme="dark"] {
   .china-inset-grid .island-box { min-width: 164px; scroll-snap-align: start; }
 }
 
-/* v1.05.6: Equal Earth world map + continent country puzzles. */
+/* v1.05.7: continent-focused Equal Earth country puzzles. */
 .world-stage { display: block; }
 .world-map-box {
   min-width: 0;
@@ -752,6 +752,10 @@ html[data-theme="dark"] {
   pointer-events: none;
 }
 .world-country-piece-card svg path { fill: var(--piece-fill); stroke: var(--piece-stroke); stroke-width: 1.5; }
+#world-country-excluded-note {
+  white-space: pre-line;
+  line-height: 1.65;
+}
 
 @media (max-width: 900px) {
   .world-map-box { min-height: 480px; }

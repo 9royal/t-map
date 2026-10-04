@@ -1,33 +1,42 @@
-# T map v1.05.6 部署
+# T map v1.05.7 部署
 
-## Cloudflare Pages
+## GitHub / Cloudflare Pages
 
-- Production branch: `main`
+建議仍在 `v1.05-testing` 先跑 Preview。
+
+Cloudflare Pages：
+
 - Build command: `npm run build && npm run verify`
-- Build output directory: `dist`
-- Node 22 可使用。
+- Output directory: `dist`
+- Production branch: `main`
+- Node.js: 22
 
-## v1.05-testing
+## 套件
 
-先在 `v1.05-testing` Push 並等待 Cloudflare Preview 成功，再以手機、平板與桌機測試。
+v1.05.7 沒有新增 npm 套件；沿用：
 
-v1.05.6 新增建置依賴 `world-atlas@2.0.2`；Cloudflare 的 `npm install` 需能取得：
-
-- `world-atlas/countries-50m.json`
+- `d3@7.9.0`
+- `topojson-client@3.1.0`
+- `taiwan-atlas@2021.9.20`
+- `@svg-maps/china@2.0.0`
 - `countries-list@3.4.1`
-- 既有 D3、TopoJSON、taiwan-atlas、@svg-maps/china
+- `world-atlas@2.0.2`
 
-Build 會產生：
+## 更新方式
 
-- `dist/data/world-regions.json`：Equal Earth 世界第一層 metadata、洲幾何與海洋感應區設定。
-- `dist/data/world-countries.json`：依洲分組的國家幾何、繁中／英文名稱與可玩標記。
+1. 將更新 ZIP 放在 repository 外解壓。
+2. 把 ZIP 內檔案／資料夾內容覆蓋到 `t-map` 根目錄。
+3. GitHub Desktop 確認檔案不是包在 `T-map-v1.05.7-update\\...` 子資料夾。
+4. Commit 到 `v1.05-testing`。
+5. Push origin。
+6. 等 Cloudflare Preview 成功後依 `TESTING.md` 驗收。
 
-學生端所有 JSON 與 JS 都由同一個 Pages 站台提供，不使用執行期 CDN。
+建議 Commit：
 
-## Preview 驗收優先順序
+```text
+T map v1.05.7 continent projection and country rules
+```
 
-1. 世界主圖形狀是否為 Equal Earth，底部是否完整看到南極大陸。
-2. 四海洋在多個主要海盆位置都能觸發正確提示與放置。
-3. 完成 11 / 11 後可進入洲別選擇。
-4. 六個有國家的洲可進入國家拼圖；南極洲顯示無國家拼圖。
-5. 國家層手機拖曳、點選、放大鏡、提示、中文／English 朗讀與進度是否正常。
+## 北極海
+
+本版刻意 **不** 新增北極海獨立放大定位區。若 Preview 出現新的 Arctic inset，代表部署檔案混入其他實驗版本，應停止合併。

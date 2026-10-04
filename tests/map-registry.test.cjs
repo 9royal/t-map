@@ -7,7 +7,7 @@ test('registry has unique ids', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('Taiwan, China and World modules are ready in v1.05.6', () => {
+test('Taiwan, China and World modules are ready in v1.05.7', () => {
   assert.deepEqual(registry.readyMaps().map(m => m.id), ['taiwan', 'china-provincial', 'world']);
   assert.equal(registry.isReady('taiwan'), true);
   assert.equal(registry.isReady('china-provincial'), true);
@@ -44,6 +44,8 @@ test('World country layer is ready, grouped by continent and uses Equal Earth', 
   const countries = registry.getMap('world').levels[1];
   assert.equal(countries.status, 'ready');
   assert.equal(countries.groupBy, 'continent');
-  assert.equal(countries.smallRegionPolicy, 'exclude-initially');
+  assert.equal(countries.smallRegionPolicy, 'exclude-with-full-name-list');
+  assert.equal(countries.continentProjectionProfiles, true);
+  assert.equal(countries.transcontinentalPolicy, 'show-in-both-adjacent-continents');
   assert.equal(countries.projection, 'Equal Earth');
 });

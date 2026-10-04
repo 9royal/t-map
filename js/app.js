@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.6';
+  const VERSION = '1.05.7';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -838,6 +838,17 @@
     return d3.geoEqualEarth().fitExtent([[pad, pad], [width - pad, height - pad]], object);
   }
 
+  function createContinentEqualEarthProjection(width, height, continent, object, fallbackPad = 18) {
+    const centerLon = Number(continent?.projection?.centerLon || 0);
+    const pad = Number(continent?.projection?.fitPadding || fallbackPad);
+    // Rotate the antimeridian away from the active continent before fitting.
+    // This keeps Asia/Oceania continuous and lets each continent occupy the
+    // available viewport instead of shrinking around remote fragments.
+    return d3.geoEqualEarth()
+      .rotate([-centerLon, 0, 0])
+      .fitExtent([[pad, pad], [width - pad, height - pad]], object);
+  }
+
   function featureFromRecord(record) {
     return { type:'Feature', properties:{ name: record.name, nameEn: record.nameEn, iso2: record.iso2, playable: record.playable }, geometry: record.geometry };
   }
@@ -1451,6 +1462,10 @@
   }
 
   function worldOceanFeatures(ocean) {
+    if (Array.isArray(ocean?.zones) && ocean.zones.length) {
+      return ocean.zones.map(ring => ({ type:'Feature', properties:{ oceanId:ocean.id }, geometry:{ type:'Polygon', coordinates:[ring] } }));
+    }
+    // Arctic Ocean intentionally keeps the v1.05.6 main-map circles in v1.05.7.
     return (ocean.circles || []).map(circle => d3.geoCircle().center(circle.center).radius(circle.radius).precision(4)());
   }
 
@@ -1634,10 +1649,13 @@
     if (!svgEl || !continent) return;
     const width=1000, height=680;
     svgEl.replaceChildren(); svgEl.setAttribute('viewBox',`0 0 ${width} ${height}`); svgEl.dataset.baseViewBox=svgEl.getAttribute('viewBox'); mobileMapStates.delete(svgEl);
-    const allRecords = continent.countries || [];
+    const allRecords = (continent.countries || []).filter(country => country.geometry);
     const allFeatures = allRecords.map(featureFromRecord);
-    const collection = {type:'FeatureCollection',features:allFeatures};
-    const projection = createEqualEarthProjection(width,height,collection,28);
+    // Fit only playable country geometry. Excluded microstates/remote context must
+    // never compress the useful continent viewport.
+    const fitFeatures = allRecords.filter(country => country.playable).map(featureFromRecord);
+    const collection = {type:'FeatureCollection',features:fitFeatures.length ? fitFeatures : allFeatures};
+    const projection = createContinentEqualEarthProjection(width,height,continent,collection,18);
     svgEl.__tmapProjection = projection;
     const pathGen = d3.geoPath(projection);
     const placed = worldCountryProgress(continent);
@@ -1668,7 +1686,20 @@
     $('#world-country-remaining').textContent=`${Math.max(0,total-done)} 塊`;
     $('#world-country-title').textContent=`${continent.name}國家拼圖`;
     $('#world-country-map-heading').textContent=`${continent.name}國家地圖`;
-    $('#world-country-excluded-note').textContent=continent.excludedCount ? `本版另有 ${continent.excludedCount} 個過小或不適合作為手機拼圖的地區／國家暫不出題。` : '';
+    const excludedNote = $('#world-country-excluded-note');
+    if (excludedNote) {
+      const lines = [];
+      (continent.excludedGroups || []).forEach(group => {
+        if (group?.names?.length) lines.push(`${group.label}：${group.names.join('、')}`);
+      });
+      if (continent.displayTrimmedCountries?.length) {
+        lines.push(`洲別放大時暫不顯示遠離本洲、會壓縮主圖的海外／遠距離領土部分：${continent.displayTrimmedCountries.join('、')}`);
+      }
+      if (continent.transcontinentalCountries?.length) {
+        lines.push(`跨洲國家（在相鄰兩洲皆出現）：${continent.transcontinentalCountries.join('、')}`);
+      }
+      excludedNote.textContent = lines.join('\n');
+    }
     setSelectedDisplay('world-country');
     renderWorldContinentCatalog();
   }
@@ -2224,7 +2255,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.6</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.6 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.7</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.7 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {
