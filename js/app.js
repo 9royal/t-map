@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.7';
+  const VERSION = '1.05.8';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
@@ -838,15 +838,22 @@
     return d3.geoEqualEarth().fitExtent([[pad, pad], [width - pad, height - pad]], object);
   }
 
+  function createRotatedEqualEarthProjection(width, height, object, centerLon = 0, pad = 18) {
+    return d3.geoEqualEarth()
+      .rotate([-Number(centerLon || 0), 0, 0])
+      .fitExtent([[pad, pad], [width - pad, height - pad]], object);
+  }
+
   function createContinentEqualEarthProjection(width, height, continent, object, fallbackPad = 18) {
     const centerLon = Number(continent?.projection?.centerLon || 0);
     const pad = Number(continent?.projection?.fitPadding || fallbackPad);
+    const boost = Math.max(1, Math.min(1.18, Number(continent?.projection?.scaleBoost || 1)));
     // Rotate the antimeridian away from the active continent before fitting.
-    // This keeps Asia/Oceania continuous and lets each continent occupy the
-    // available viewport instead of shrinking around remote fragments.
-    return d3.geoEqualEarth()
-      .rotate([-centerLon, 0, 0])
-      .fitExtent([[pad, pad], [width - pad, height - pad]], object);
+    // v1.05.8 then applies a modest per-continent scale boost so Africa/South
+    // America and the other continent puzzles use more of the available panel.
+    const projection = createRotatedEqualEarthProjection(width, height, object, centerLon, pad);
+    if (boost > 1) projection.scale(projection.scale() * boost);
+    return projection;
   }
 
   function featureFromRecord(record) {
@@ -1445,6 +1452,7 @@
     path.dataset.regionNameEn = item.nameEn || item.name;
     path.dataset.level = 'world-region';
     path.dataset.worldKind = item.kind || 'continent';
+    path.dataset.worldId = item.id || '';
     path.setAttribute('aria-label', item.name);
     // Continents use cached projected polygon geometry for precise interior tests.
     // Ocean teaching zones can cross the antimeridian, so keep their exact rendered
@@ -1461,11 +1469,23 @@
     return path;
   }
 
+  function oceanPolygonFeature(ring, oceanId) {
+    const clean = (ring || []).map(point => [Number(point[0]), Number(point[1])]);
+    let feature = { type:'Feature', properties:{ oceanId }, geometry:{ type:'Polygon', coordinates:[clean] } };
+    // D3 spherical polygons are winding-sensitive. If a teaching polygon is
+    // interpreted as the complement of the intended basin, reverse the ring so
+    // placing Pacific cannot visually paint the other oceans as well.
+    if (clean.length >= 4 && d3.geoArea(feature) > Math.PI * 2) {
+      feature = { type:'Feature', properties:{ oceanId }, geometry:{ type:'Polygon', coordinates:[clean.slice().reverse()] } };
+    }
+    return feature;
+  }
+
   function worldOceanFeatures(ocean) {
     if (Array.isArray(ocean?.zones) && ocean.zones.length) {
-      return ocean.zones.map(ring => ({ type:'Feature', properties:{ oceanId:ocean.id }, geometry:{ type:'Polygon', coordinates:[ring] } }));
+      return ocean.zones.map(ring => oceanPolygonFeature(ring, ocean.id));
     }
-    // Arctic Ocean intentionally keeps the v1.05.6 main-map circles in v1.05.7.
+    // Arctic Ocean intentionally keeps the v1.05.6 main-map circles in v1.05.8.
     return (ocean.circles || []).map(circle => d3.geoCircle().center(circle.center).radius(circle.radius).precision(4)());
   }
 
@@ -1593,7 +1613,11 @@
     const svg = document.createElementNS('http://www.w3.org/2000/svg','svg');
     svg.setAttribute('viewBox','0 0 112 76'); svg.setAttribute('aria-hidden','true');
     const feature = featureFromRecord(country);
-    const projection = createEqualEarthProjection(112, 76, feature, 6);
+    const continent = worldContinentData();
+    const centerLon = Number(continent?.projection?.centerLon || 0);
+    // Use the active continent central meridian for previews too. This prevents
+    // Fiji/antimeridian countries from being split across both sides of the card.
+    const projection = createRotatedEqualEarthProjection(112, 76, feature, centerLon, 6);
     const path = document.createElementNS('http://www.w3.org/2000/svg','path');
     path.setAttribute('d', d3.geoPath(projection)(feature) || '');
     svg.append(path);
@@ -2255,7 +2279,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.7</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.7 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.8</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.8 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

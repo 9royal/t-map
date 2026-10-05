@@ -73,7 +73,7 @@ const arcticOcean = worldOceans.find(x => x.id === 'arctic-ocean');
 const nonArcticOceans = worldOceans.filter(x => x.id !== 'arctic-ocean');
 if (nonArcticOceans.some(x => !Array.isArray(x.zones) || !x.zones.length || x.zones.some(ring => !Array.isArray(ring) || ring.length < 4))) throw new Error('太平洋／大西洋／印度洋多邊形感應資料不完整。');
 if (!arcticOcean || !Array.isArray(arcticOcean.circles) || arcticOcean.circles.length < 3 || arcticOcean.circles.some(z => !Array.isArray(z.center) || !Number.isFinite(z.radius))) throw new Error('北極海應維持 v1.05.6 主圖感應資料。');
-if (Array.isArray(arcticOcean.zones) && arcticOcean.zones.length) throw new Error('v1.05.7 不應新增北極海獨立多邊形／放大定位區。');
+if (Array.isArray(arcticOcean.zones) && arcticOcean.zones.length) throw new Error('v1.05.8 不應新增北極海獨立多邊形／放大定位區。');
 for (const name of ['亞洲','歐洲','非洲','北美洲','南美洲','大洋洲','南極洲','太平洋','大西洋','印度洋','北極海']) {
   if (![...worldContinents, ...worldOceans].some(x => x.name === name)) throw new Error(`世界第一層缺少：${name}`);
 }
@@ -97,33 +97,46 @@ for (const [iso2,a,b] of transcontinentalPairs) {
   }
 }
 
+const oceania = worldCountryContinents.find(x => x.code === 'OC');
+const expectedOceania = ['AU','FJ','NC','NZ','PG','SB','TL','VU'];
+const actualOceania = (oceania?.countries || []).filter(c => c.playable).map(c => c.iso2).sort();
+if (!oceania || actualOceania.join(',') !== expectedOceania.join(',')) {
+  throw new Error(`大洋洲可玩白名單不一致：${actualOceania.join(',')}`);
+}
+if ((oceania.countries || []).filter(c => c.iso2 === 'AU').length !== 1) throw new Error('大洋洲澳洲拼圖重複。');
+const nz = oceania.countries.find(c => c.iso2 === 'NZ');
+const nzPolygons = nz?.geometry?.type === 'Polygon' ? 1 : nz?.geometry?.type === 'MultiPolygon' ? nz.geometry.coordinates.length : 0;
+if (nzPolygons !== 2) throw new Error(`紐西蘭應只保留南北兩大島，實際 polygon 數：${nzPolygons}`);
+if (!worldCountryContinents.find(x=>x.code==='AS')?.countries?.some(c=>c.iso2==='TL')) throw new Error('東帝汶應保留亞洲關卡。');
+
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
 const html = await readFile(path.join(dist, 'index.html'), 'utf8');
 const app = await readFile(path.join(dist, 'js/app.js'), 'utf8');
 const registry = await readFile(path.join(dist, 'js/map-registry.js'), 'utf8');
 const helper = await readFile(path.join(dist, 'js/puzzle-hints.js'), 'utf8');
+const style = await readFile(path.join(dist, 'css/style.css'), 'utf8');
 const info = JSON.parse(await readFile(path.join(dist, 'build-info.json'), 'utf8'));
 
 const checks = [
-  [pkg.version === '1.5.7', 'package.json 版本不是 1.5.7'],
+  [pkg.version === '1.5.8', 'package.json 版本不是 1.5.8'],
   [pkg.dependencies?.['@svg-maps/china'] === '2.0.0', '缺少 @svg-maps/china 2.0.0 依賴'],
   [pkg.dependencies?.['world-atlas'] === '2.0.2', '缺少 world-atlas 2.0.2 依賴'],
   [pkg.dependencies?.['countries-list'] === '3.4.1', '缺少 countries-list 3.4.1 依賴'],
-  [version === 'T map v1.05.7', 'VERSION 不一致'],
-  [info.version === '1.05.7', 'build-info 版本不一致'],
+  [version === 'T map v1.05.8', 'VERSION 不一致'],
+  [info.version === '1.05.8', 'build-info 版本不一致'],
   [info.worldProjection === 'Equal Earth', 'build-info 世界投影不是 Equal Earth'],
-  [html.includes('T map v1.05.7'), 'HTML 版本不一致'],
+  [html.includes('T map v1.05.8'), 'HTML 版本不一致'],
   [html.includes('screen-china') && html.includes('screen-world') && html.includes('screen-world-continents') && html.includes('screen-world-country'), '缺少中國或世界第二層畫面'],
   [html.includes('china-complete-dialog') && html.includes('world-complete-dialog') && html.includes('world-country-complete-dialog'), '缺少完成提示'],
-  [html.includes('style.css?v=1.05.7') && html.includes('app.js?v=1.05.7'), 'HTML 靜態資源版本參數不一致'],
-  [app.includes("const VERSION = '1.05.7'"), 'app.js 版本不一致'],
+  [html.includes('style.css?v=1.05.8') && html.includes('app.js?v=1.05.8'), 'HTML 靜態資源版本參數不一致'],
+  [app.includes("const VERSION = '1.05.8'"), 'app.js 版本不一致'],
   [app.includes("const WORLD_URL = 'data/world-regions.json'") && app.includes("const WORLD_COUNTRIES_URL = 'data/world-countries.json'"), 'app.js 未使用本地世界圖資'],
   [app.includes('d3.geoEqualEarth()') && app.includes('d3.geoGraticule10()'), 'Equal Earth 世界投影未接入 app.js'],
-  [app.includes('Array.isArray(ocean?.zones)') && app.includes("geometry:{ type:'Polygon', coordinates:[ring] }") && app.includes('d3.geoCircle().center(circle.center).radius(circle.radius)'), '海洋多邊形／北極海 fallback 感應未接入 app.js'],
+  [app.includes('Array.isArray(ocean?.zones)') && app.includes('oceanPolygonFeature(ring, ocean.id)') && app.includes('d3.geoArea(feature) > Math.PI * 2') && app.includes('d3.geoCircle().center(circle.center).radius(circle.radius)'), '海洋多邊形／環繞方向／北極海 fallback 感應未接入 app.js'],
   [app.includes("item.kind === 'ocean'") && app.includes('new Path2D(d)') && app.includes('pointInsideWorldLand'), '海洋 Path2D／陸地遮罩未接入 app.js'],
   [app.includes("level === 'world-country'") && app.includes('renderWorldCountryMap'), '世界國家拼圖未接入共用互動引擎'],
-  [app.includes('createContinentEqualEarthProjection') && app.includes('.rotate([-centerLon, 0, 0])'), '洲別 Equal Earth 中央經線投影未接入'],
+  [app.includes('createContinentEqualEarthProjection') && app.includes('createRotatedEqualEarthProjection') && app.includes('projection.scale(projection.scale() * boost)'), '洲別 Equal Earth 中央經線／再放大投影未接入'],
   [app.includes('continent.excludedGroups') && app.includes('displayTrimmedCountries') && app.includes('transcontinentalCountries'), '完整排除名單／海外領地／跨洲說明未接入 UI'],
   [app.includes('showChinaComplete(false)') && app.includes('showWorldComplete(false)') && app.includes('showWorldCountryComplete(continent)'), '完成提示／音效未完整接入'],
   [registry.includes("id: 'world'") && registry.includes("id: 'countries'") && registry.includes("status: 'ready'"), '多地圖 registry 世界第二層狀態不一致'],
@@ -132,7 +145,11 @@ const checks = [
   [info.worldContinentCount === 7 && info.worldOceanCount === 4 && info.worldFirstLevelCount === 11, 'build-info 世界第一層數量不一致'],
   [info.worldPlayableCountryCount === playableCountryCount, 'build-info 世界國家可玩數量不一致'],
   [info.continentProjectionProfiles === true, 'build-info 未標記洲別投影設定'],
-  [info.arcticInset === false, 'v1.05.7 不應啟用北極海獨立放大框'],
+  [info.continentScaleBoosts === true, 'build-info 未標記洲別再放大設定'],
+  [Array.isArray(info.oceaniaPlayableIso2) && info.oceaniaPlayableIso2.slice().sort().join(',') === expectedOceania.join(','), 'build-info 大洋洲 8 區白名單不一致'],
+  [info.worldLabelHighContrast === true && style.includes('--world-label-fill') && style.includes('--world-label-halo'), '世界地圖高對比國名樣式未接入'],
+  [info.oceanWindingNormalized === true && app.includes('d3.geoArea(feature) > Math.PI * 2'), '海洋多邊形環繞方向修正未接入'],
+  [info.arcticInset === false, 'v1.05.8 不應啟用北極海獨立放大框'],
   [Array.isArray(info.readyMaps) && info.readyMaps.join(',') === 'taiwan,china-provincial,world', 'build-info readyMaps 不一致']
 ];
 for (const [ok, message] of checks) if (!ok) throw new Error(message);
@@ -143,4 +160,4 @@ console.log(`✓ 臺灣行政區資料完整：${c} 縣市 / ${t} 鄉鎮市區`)
 console.log('✓ 中國模組資料完整：33 塊（香港、澳門存在；臺灣未重複）');
 console.log('✓ 世界第一層：Equal Earth 等積投影、南極大陸、7 大洲＋3 大洋＋北極海');
 console.log(`✓ 世界第二層：七大洲國家分組，可玩國家 ${playableCountryCount}，小國保留但暫不出題`);
-console.log('✓ v1.05.7 洲別放大、完整排除名單、跨洲國家與海外領地裁切接線一致');
+console.log('✓ v1.05.8 高對比國名、洲別再放大、大洋洲 8 區白名單、紐西蘭南北島與海洋高亮修正一致');

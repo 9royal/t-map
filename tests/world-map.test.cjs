@@ -32,6 +32,15 @@ function fixture() {
     feature('630','Puerto Rico',-67,17,2,2),
     feature('076','Brazil',-65,-30,22,28),
     feature('036','Australia',115,-38,30,25),
+    feature('036','Australia',116,-37,28,23),
+    feature('554','New Zealand',multi(box(166,-47,7,6),box(173,-41,6,7),box(167,-49,1,1),box(-176,-45,1,1))),
+    feature('598','Papua New Guinea',141,-11,14,10),
+    feature('090','Solomon Islands',155,-12,9,9),
+    feature('548','Vanuatu',166,-21,4,8),
+    feature('626','Timor-Leste',124,-10,4,3),
+    feature('540','New Caledonia',163,-23,5,5),
+    feature('242','Fiji',multi(box(177,-19,2,2),box(179,-17,2,2),box(-180,-18,1.2,1.2),box(178,-20,1,1),box(-179,-16,0.7,0.7))),
+    feature('882','Samoa',-173,-15,2,2),
     feature('010','Antarctica',-150,-86,300,10),
     feature('702','Singapore',103,1,1,1),
     feature('643','Russia',30,50,120,20),
@@ -44,6 +53,8 @@ function fixture() {
   const countries = {
     CN:{name:'China',continent:'AS'}, FR:{name:'France',continent:'EU'}, ZA:{name:'South Africa',continent:'AF'},
     US:{name:'United States',continent:'NA'}, PR:{name:'Puerto Rico',continent:'NA'}, BR:{name:'Brazil',continent:'SA'}, AU:{name:'Australia',continent:'OC'},
+    NZ:{name:'New Zealand',continent:'OC'}, PG:{name:'Papua New Guinea',continent:'OC'}, SB:{name:'Solomon Islands',continent:'OC'},
+    VU:{name:'Vanuatu',continent:'OC'}, TL:{name:'Timor-Leste',continent:'AS'}, NC:{name:'New Caledonia',continent:'OC'}, FJ:{name:'Fiji',continent:'OC'}, WS:{name:'Samoa',continent:'OC'},
     AQ:{name:'Antarctica',continent:'AN'}, SG:{name:'Singapore',continent:'AS'}, RU:{name:'Russia',continent:'EU'},
     TR:{name:'Turkey',continent:'AS'}, KZ:{name:'Kazakhstan',continent:'AS'}, AZ:{name:'Azerbaijan',continent:'AS'},
     GE:{name:'Georgia',continent:'AS'}, EG:{name:'Egypt',continent:'AF'}
@@ -80,6 +91,55 @@ test('continent country layer exposes separate Equal Earth projection profiles',
   assert.equal(out.continents.find(x=>x.code==='NA').projection.centerLon, -100);
   assert.equal(out.continents.find(x=>x.code==='OC').projection.centerLon, 155);
   assert.ok(out.continents.every(x => x.projection.type === 'Equal Earth'));
+});
+
+test('continent profiles use extra scale boost, especially Africa and South America', async () => {
+  const mod = await load();
+  const {features,countryModule} = fixture();
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  const af = out.continents.find(x=>x.code==='AF');
+  const sa = out.continents.find(x=>x.code==='SA');
+  assert.ok(af.projection.scaleBoost >= 1.1);
+  assert.ok(sa.projection.scaleBoost >= 1.1);
+  assert.ok(out.continents.filter(x=>x.code!=='AN').every(x => x.projection.scaleBoost >= 1));
+});
+
+test('Oceania puzzle is deduplicated and restricted to the requested eight playable regions', async () => {
+  const mod = await load();
+  const {features,countryModule} = fixture();
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  const oc = out.continents.find(x=>x.code==='OC');
+  const playable = oc.countries.filter(x=>x.playable);
+  assert.deepEqual(new Set(playable.map(x=>x.iso2)), new Set(['AU','NZ','PG','SB','VU','TL','NC','FJ']));
+  assert.equal(playable.length, 8);
+  assert.equal(oc.countries.filter(x=>x.iso2==='AU').length, 1, 'Australia must not be duplicated');
+  const excluded = oc.excludedGroups.find(x=>x.reason==='not-in-oceania-whitelist');
+  assert.ok(excluded);
+  assert.ok(excluded.names.some(name => /Samoa|薩摩亞/.test(name)));
+});
+
+test('New Zealand keeps only its two largest main islands and Fiji drops remote tiny components', async () => {
+  const mod = await load();
+  const {features,countryModule} = fixture();
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  const oc = out.continents.find(x=>x.code==='OC');
+  const nz = oc.countries.find(x=>x.iso2==='NZ');
+  const fj = oc.countries.find(x=>x.iso2==='FJ');
+  assert.equal(polygonCount(nz.geometry), 2);
+  assert.ok(polygonCount(fj.geometry) <= 4);
+  assert.equal(nz.playable, true);
+  assert.equal(fj.playable, true);
+});
+
+test('Timor-Leste remains in Asia and is additionally available in the Oceania teaching puzzle', async () => {
+  const mod = await load();
+  const {features,countryModule} = fixture();
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  const asia = out.continents.find(x=>x.code==='AS').countries.find(x=>x.iso2==='TL');
+  const oceania = out.continents.find(x=>x.code==='OC').countries.find(x=>x.iso2==='TL');
+  assert.ok(asia);
+  assert.ok(oceania?.playable);
+  assert.equal(oceania.transcontinental, false);
 });
 
 test('requested transcontinental countries appear in both adjacent continent puzzles', async () => {

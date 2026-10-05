@@ -13,6 +13,8 @@
   --placed-fill: #2f9b68;
   --placed-stroke: #0d5b38;
   --placed-label: #ffffff;
+  --world-label-fill: #111827;
+  --world-label-halo: #ffffff;
   --warning: #8a5b0f;
   --warning-soft: #fff0c7;
   --target: #e6ebee;
@@ -38,6 +40,8 @@ html[data-theme="dark"] {
   --placed-fill: #49b979;
   --placed-stroke: #b8f0cf;
   --placed-label: #08140e;
+  --world-label-fill: #f8fbff;
+  --world-label-halo: #071218;
   --warning: #f1c46d;
   --warning-soft: #443519;
   --target: #26343b;
@@ -658,7 +662,7 @@ html[data-theme="dark"] {
   .china-inset-grid .island-box { min-width: 164px; scroll-snap-align: start; }
 }
 
-/* v1.05.7: continent-focused Equal Earth country puzzles. */
+/* v1.05.8: continent-focused Equal Earth country puzzles. */
 .world-stage { display: block; }
 .world-map-box {
   min-width: 0;
@@ -701,12 +705,14 @@ html[data-theme="dark"] {
 }
 .world-map-label {
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 900;
+  fill: var(--world-label-fill);
   paint-order: stroke fill;
-  stroke: var(--map-bg);
-  stroke-width: 3px;
+  stroke: var(--world-label-halo);
+  stroke-width: 3.2px;
   stroke-linejoin: round;
   pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / .18));
 }
 .world-piece-card .world-ocean-piece path {
   fill: none;
@@ -744,12 +750,15 @@ html[data-theme="dark"] {
 }
 .world-country-target { stroke-width: 1; }
 .world-country-label {
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 900;
+  fill: var(--world-label-fill);
   paint-order: stroke fill;
-  stroke: var(--map-bg);
-  stroke-width: 3px;
+  stroke: var(--world-label-halo);
+  stroke-width: 3.2px;
+  stroke-linejoin: round;
   pointer-events: none;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / .2));
 }
 .world-country-piece-card svg path { fill: var(--piece-fill); stroke: var(--piece-stroke); stroke-width: 1.5; }
 #world-country-excluded-note {
@@ -765,7 +774,7 @@ html[data-theme="dark"] {
   .world-map-box { min-height: min(56dvh, 470px); }
   .world-map-svg { height: min(56dvh, 470px); }
   .world-map-label { font-size: 11px; }
-  .world-country-label { font-size: 9px; }
+  .world-country-label { font-size: 10px; }
   .continent-card-grid { grid-template-columns: 1fr; gap: 12px; }
   .continent-card { min-height: 0; padding: 16px; }
 }

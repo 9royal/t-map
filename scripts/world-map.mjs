@@ -14,18 +14,18 @@ export const WORLD_CONTINENTS = Object.freeze([
 // Asia/Oceania together across the antimeridian and prevents remote geometry from
 // forcing the playable countries into one small corner of the viewport.
 export const WORLD_CONTINENT_PROFILES = Object.freeze({
-  AS: Object.freeze({ centerLon: 100, minDeltaLon: -78, maxDeltaLon: 84, minLat: -12, maxLat: 82, fitPadding: 18 }),
-  EU: Object.freeze({ centerLon: 15, minDeltaLon: -40, maxDeltaLon: 48, minLat: 34, maxLat: 72, fitPadding: 18 }),
-  AF: Object.freeze({ centerLon: 20, minDeltaLon: -42, maxDeltaLon: 44, minLat: -38, maxLat: 39, fitPadding: 18 }),
-  NA: Object.freeze({ centerLon: -100, minDeltaLon: -78, maxDeltaLon: 82, minLat: 5, maxLat: 85, fitPadding: 18 }),
-  SA: Object.freeze({ centerLon: -60, minDeltaLon: -42, maxDeltaLon: 36, minLat: -60, maxLat: 16, fitPadding: 18 }),
-  OC: Object.freeze({ centerLon: 155, minDeltaLon: -58, maxDeltaLon: 82, minLat: -52, maxLat: 30, fitPadding: 18 }),
-  AN: Object.freeze({ centerLon: 0, minDeltaLon: -180, maxDeltaLon: 180, minLat: -90, maxLat: -58, fitPadding: 18 })
+  AS: Object.freeze({ centerLon: 100, minDeltaLon: -78, maxDeltaLon: 84, minLat: -12, maxLat: 82, fitPadding: 10, scaleBoost: 1.06 }),
+  EU: Object.freeze({ centerLon: 15, minDeltaLon: -40, maxDeltaLon: 48, minLat: 34, maxLat: 72, fitPadding: 10, scaleBoost: 1.08 }),
+  AF: Object.freeze({ centerLon: 20, minDeltaLon: -42, maxDeltaLon: 44, minLat: -38, maxLat: 39, fitPadding: 6, scaleBoost: 1.14 }),
+  NA: Object.freeze({ centerLon: -100, minDeltaLon: -78, maxDeltaLon: 82, minLat: 5, maxLat: 85, fitPadding: 10, scaleBoost: 1.07 }),
+  SA: Object.freeze({ centerLon: -60, minDeltaLon: -42, maxDeltaLon: 36, minLat: -60, maxLat: 16, fitPadding: 6, scaleBoost: 1.14 }),
+  OC: Object.freeze({ centerLon: 155, minDeltaLon: -58, maxDeltaLon: 82, minLat: -52, maxLat: 30, fitPadding: 8, scaleBoost: 1.05 }),
+  AN: Object.freeze({ centerLon: 0, minDeltaLon: -180, maxDeltaLon: 180, minLat: -90, maxLat: -58, fitPadding: 12, scaleBoost: 1.0 })
 });
 
 // Pacific / Atlantic / Indian Ocean use coarse geographic polygons rather than a
 // few isolated circles. Arctic Ocean intentionally keeps the v1.05.6 circles for
-// this release; there is no separate Arctic inset in v1.05.7.
+// this release; there is no separate Arctic inset in v1.05.8.
 export const WORLD_OCEANS = Object.freeze([
   Object.freeze({
     id: 'pacific-ocean', name: '太平洋', nameEn: 'Pacific Ocean', labels: [[-150, 5], [165, 3]],
@@ -63,8 +63,16 @@ export const SMALL_COUNTRY_EXCLUDE_ISO2 = Object.freeze(new Set([
   'AD','AG','BH','BB','BN','CV','KM','DM','GD','KI','LI','MV','MT','MH','MU','FM','MC','NR','PW','KN','LC','VC','SM','ST','SC','SG','TO','TV','VA'
 ]));
 
+// v1.05.8: 大洋洲國家拼圖採教學白名單，只保留使用者指定的 8 個可玩區域。
+// NC（新喀里多尼亞）雖不是主權國家，仍作為本模組指定的可玩區域。
+// TL（東帝汶）保留亞洲既有分類，同時加入大洋洲教學關卡。
+export const OCEANIA_PLAYABLE_ISO2 = Object.freeze(new Set(['AU','NZ','PG','SB','VU','TL','NC','FJ']));
+const EXTRA_PUZZLE_CONTINENTS_BY_ISO2 = Object.freeze({
+  TL: Object.freeze(['OC'])
+});
+
 // Overseas/dependent territories in Europe and the Americas are intentionally not
-// part of the sovereign-country puzzle in v1.05.7. Their names are still listed in
+// part of the sovereign-country puzzle in v1.05.8. Their names are still listed in
 // the explanatory note instead of disappearing silently.
 export const DEPENDENT_TERRITORY_EXCLUDE_BY_CONTINENT = Object.freeze({
   EU: Object.freeze(new Set(['AX','FO','GI','GG','IM','JE','SJ'])),
@@ -125,7 +133,7 @@ const MANUAL_CONTINENT_BY_NAME = Object.freeze({
 });
 
 const MANUAL_CONTINENT_BY_ISO2 = Object.freeze({
-  RU: 'AS', TR: 'AS', KZ: 'AS', EG: 'AF', GE: 'AS', AM: 'AS', AZ: 'AS', CY: 'AS'
+  RU: 'AS', TR: 'AS', KZ: 'AS', EG: 'AF', GE: 'AS', AM: 'AS', AZ: 'AS', CY: 'AS', NC: 'OC'
 });
 
 const NAME_ZH_OVERRIDES = Object.freeze({ XK: '科索沃' });
@@ -136,6 +144,7 @@ const EXCLUDED_REASON_LABELS = Object.freeze({
   'no-iso-code': '特殊／爭議圖資沒有可用 ISO 代碼，暫不列入拼圖',
   'no-geometry-in-continent': '洲別切分後沒有可用拼圖輪廓，暫不列入拼圖',
   'no-sovereign-country-puzzle': '本層沒有主權國家拼圖',
+  'not-in-oceania-whitelist': '本版大洋洲僅收錄指定 8 個拼圖對象，其他區域暫不列入拼圖',
   'unclassified': '洲別資料未能分類，暫不列入拼圖'
 });
 
@@ -169,7 +178,11 @@ function continentCodesForFeature(feature, countryModule) {
   const iso2 = iso2FromFeature(feature);
   if (TRANS_CONTINENT_ISO2[iso2]) return TRANS_CONTINENT_ISO2[iso2].slice();
   const primary = primaryContinentCodeForFeature(feature, countryModule);
-  return primary ? [primary] : [];
+  const codes = primary ? [primary] : [];
+  (EXTRA_PUZZLE_CONTINENTS_BY_ISO2[iso2] || []).forEach(code => {
+    if (!codes.includes(code)) codes.push(code);
+  });
+  return codes;
 }
 
 function namesForFeature(feature, countryModule) {
@@ -221,6 +234,44 @@ function geometryFromPolygons(polygons) {
   if (!valid.length) return null;
   return valid.length === 1 ? { type: 'Polygon', coordinates: valid[0] } : { type: 'MultiPolygon', coordinates: valid };
 }
+
+function ringApproxArea(ring) {
+  if (!Array.isArray(ring) || ring.length < 4) return 0;
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i += 1) {
+    const a = ring[i], b = ring[i + 1];
+    if (!a || !b) continue;
+    sum += Number(a[0]) * Number(b[1]) - Number(b[0]) * Number(a[1]);
+  }
+  return Math.abs(sum) / 2;
+}
+
+function polygonApproxArea(poly) {
+  const outer = ringApproxArea(poly?.[0] || []);
+  const holes = (poly || []).slice(1).reduce((sum, ring) => sum + ringApproxArea(ring), 0);
+  return Math.max(0, outer - holes);
+}
+
+function keepLargestGeometryComponents(geometry, count) {
+  if (!geometry || !Number.isFinite(count) || count < 1) return cloneGeometry(geometry);
+  const polygons = geometryPolygons(geometry);
+  if (polygons.length <= count) return cloneGeometry(geometry);
+  const kept = polygons
+    .map((poly, index) => ({ poly, index, area: polygonApproxArea(poly) }))
+    .sort((a, b) => (b.area - a.area) || (a.index - b.index))
+    .slice(0, count)
+    .sort((a, b) => a.index - b.index)
+    .map(item => item.poly);
+  return geometryFromPolygons(kept);
+}
+
+const COMPONENT_LIMIT_BY_CONTINENT = Object.freeze({
+  OC: Object.freeze({
+    // 紐西蘭拼圖只保留北島、南島；斐濟保留主要島嶼，避免遠方小島把拼圖預覽拉扁。
+    NZ: 2,
+    FJ: 4
+  })
+});
 
 function filterGeometryComponents(geometry, zones) {
   if (!geometry || !Array.isArray(zones) || !zones.length) return cloneGeometry(geometry);
@@ -306,6 +357,8 @@ function geometryForContinent(baseGeometry, iso2, continentCode) {
   let geometry = cloneGeometry(baseGeometry);
   const zones = MAIN_TERRITORY_ZONES?.[continentCode]?.[iso2];
   if (zones) geometry = filterGeometryComponents(geometry, zones);
+  const componentLimit = COMPONENT_LIMIT_BY_CONTINENT?.[continentCode]?.[iso2];
+  if (componentLimit) geometry = keepLargestGeometryComponents(geometry, componentLimit);
   const splitRule = TRANS_CONTINENT_SPLITS?.[iso2]?.[continentCode] || null;
   return clipGeometryToContinent(geometry, continentCode, splitRule);
 }
@@ -314,14 +367,16 @@ function countryRecordForContinent(feature, countryModule, continentCode, allCon
   const { iso2, nameEn, nameZh } = namesForFeature(feature, countryModule);
   const isAntarctica = iso2 === 'AQ' || normalizeName(feature?.properties?.name) === 'antarctica';
   const dependentTerritory = !!iso2 && !!DEPENDENT_TERRITORY_EXCLUDE_BY_CONTINENT?.[continentCode]?.has(iso2);
-  const geometry = dependentTerritory ? null : geometryForContinent(feature?.geometry, iso2, continentCode);
+  const oceaniaRestricted = continentCode === 'OC' && (!iso2 || !OCEANIA_PLAYABLE_ISO2.has(iso2));
+  // 大洋洲白名單以外的圖形不顯示在洲別目標圖，避免大量遠方島嶼壓縮或干擾指定 8 區。
+  const geometry = (dependentTerritory || oceaniaRestricted) ? null : geometryForContinent(feature?.geometry, iso2, continentCode);
   const hasGeometry = !!geometry;
   const small = !!iso2 && SMALL_COUNTRY_EXCLUDE_ISO2.has(iso2);
-  const playable = !isAntarctica && !dependentTerritory && !!iso2 && hasGeometry && !small;
+  const playable = !isAntarctica && !dependentTerritory && !oceaniaRestricted && !!iso2 && hasGeometry && !small;
   const originalCount = geometryCoordinateCount(feature?.geometry);
   const displayCount = geometryCoordinateCount(geometry);
   const trimmed = hasGeometry && originalCount > 0 && displayCount < originalCount * 0.97;
-  const transcontinental = allContinentCodes.length > 1;
+  const transcontinental = !!TRANS_CONTINENT_ISO2[iso2];
   const splitRule = TRANS_CONTINENT_SPLITS?.[iso2]?.[continentCode] || null;
   return {
     id: `${String(feature?.id ?? (iso2 || nameEn))}-${continentCode}`,
@@ -334,7 +389,13 @@ function countryRecordForContinent(feature, countryModule, continentCode, allCon
     transcontinental,
     transcontinentalDisplay: transcontinental ? (splitRule ? 'continent-part' : 'whole-country-in-both') : null,
     playable,
-    excludedReason: isAntarctica ? 'no-sovereign-country-puzzle' : dependentTerritory ? 'overseas-territory' : !iso2 ? 'no-iso-code' : !hasGeometry ? 'no-geometry-in-continent' : small ? 'small-on-phone-map' : null,
+    excludedReason: isAntarctica ? 'no-sovereign-country-puzzle'
+      : dependentTerritory ? 'overseas-territory'
+      : oceaniaRestricted ? 'not-in-oceania-whitelist'
+      : !iso2 ? 'no-iso-code'
+      : !hasGeometry ? 'no-geometry-in-continent'
+      : small ? 'small-on-phone-map'
+      : null,
     displayTrimmed: trimmed,
     geometry
   };
@@ -347,6 +408,26 @@ function firstLevelFeatureRecord(feature, countryModule) {
     id: String(feature?.id ?? (iso2 || nameEn)), iso2, name: nameZh, nameEn, continent,
     geometry: cloneGeometry(feature?.geometry)
   };
+}
+
+function countryDedupeKey(country) {
+  return country?.iso2 ? `iso:${country.iso2}` : `name:${normalizeName(country?.nameEn || country?.name)}`;
+}
+
+function dedupeCountryRecords(records) {
+  const best = new Map();
+  (records || []).forEach(record => {
+    const key = countryDedupeKey(record);
+    const current = best.get(key);
+    if (!current) {
+      best.set(key, record);
+      return;
+    }
+    const currentScore = (current.playable ? 1_000_000 : 0) + geometryCoordinateCount(current.geometry);
+    const nextScore = (record.playable ? 1_000_000 : 0) + geometryCoordinateCount(record.geometry);
+    if (nextScore > currentScore) best.set(key, record);
+  });
+  return Array.from(best.values());
 }
 
 function buildExcludedGroups(countries) {
@@ -448,7 +529,7 @@ export function normalizeWorldCountries(features, countryModule) {
   });
 
   const continents = WORLD_CONTINENTS.map(item => {
-    const countries = grouped.get(item.code).sort((a,b) => a.name.localeCompare(b.name, 'zh-Hant'));
+    const countries = dedupeCountryRecords(grouped.get(item.code)).sort((a,b) => a.name.localeCompare(b.name, 'zh-Hant'));
     if (item.code === 'AN') {
       countries.forEach(country => { country.playable = false; country.excludedReason = 'no-sovereign-country-puzzle'; });
     }
@@ -459,7 +540,7 @@ export function normalizeWorldCountries(features, countryModule) {
     const transcontinentalCountries = Array.from(new Set(countries.filter(country => country.transcontinental).map(country => country.name))).sort((a,b) => a.localeCompare(b,'zh-Hant'));
     return {
       id: item.id, code: item.code, name: item.name, nameEn: item.nameEn,
-      projection: { type: 'Equal Earth', centerLon: profile.centerLon, fitPadding: profile.fitPadding },
+      projection: { type: 'Equal Earth', centerLon: profile.centerLon, fitPadding: profile.fitPadding, scaleBoost: profile.scaleBoost || 1 },
       countries,
       playableCount,
       excludedCount: countries.filter(country => !country.playable).length,
@@ -476,9 +557,9 @@ export function normalizeWorldCountries(features, countryModule) {
       names: 'ISO 3166-1 / CLDR Traditional Chinese snapshot generated for T map',
       continentMetadata: 'countries-list 3.4.1 (MIT)'
     },
-    smallCountryPolicy: '手機洲別地圖上過小的國家先不列入拼圖；每一洲都會完整列出被排除國名與原因。',
+    smallCountryPolicy: '手機洲別地圖上過小的國家先不列入拼圖；每一洲都會完整列出被排除國名與原因。大洋洲另採指定 8 區白名單。',
     territoryDisplayPolicy: '洲別國家拼圖以本洲主要領土為主；歐洲與美洲遠離本洲、會壓縮主圖的海外領地／遠距離附屬部分暫不顯示。',
-    transcontinentalPolicy: '俄羅斯、土耳其、哈薩克、亞塞拜然、喬治亞、埃及會在相鄰兩洲皆出現；邊界明確者顯示洲內部分，高加索邊界具多種慣例的喬治亞與亞塞拜然在兩洲皆保留完整國形。',
+    transcontinentalPolicy: '俄羅斯、土耳其、哈薩克、亞塞拜然、喬治亞、埃及會在相鄰兩洲皆出現；邊界明確者顯示洲內部分，高加索邊界具多種慣例的喬治亞與亞塞拜然在兩洲皆保留完整國形。東帝汶另加入大洋洲教學白名單，不視為跨洲國家。',
     continents,
     unclassified
   };

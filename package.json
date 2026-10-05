@@ -1,8 +1,8 @@
 {
   "name": "t-map",
-  "version": "1.5.7",
+  "version": "1.5.8",
   "private": true,
-  "description": "T map v1.05.7 - 各洲 Equal Earth 放大、跨洲國家雙洲呈現、海外領地裁切與海洋多邊形感應",
+  "description": "T map v1.05.8 - 世界國名高對比、洲別再放大、大洋洲 8 區白名單與海洋高亮修正",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",

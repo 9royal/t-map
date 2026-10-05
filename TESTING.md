@@ -1,56 +1,56 @@
-# T map v1.05.7 測試紀錄
+# T map v1.05.8 測試紀錄
 
 ## 自動單元測試
 
 執行：
 
 ```bash
-node --test tests/*.test.cjs
+npm test
 ```
 
-結果：**56 / 56 通過**。
+目前結果：**63 / 63 通過**。
 
-v1.05.7 新增／更新的重點測試：
+v1.05.8 新增／更新重點：
 
-- 世界第一層仍為 Equal Earth、7 大洲＋3 大洋＋北極海。
-- 太平洋／大西洋／印度洋使用多邊形感應區。
-- 北極海仍保留 v1.05.6 的主圖 circle 感應資料，沒有新增獨立 inset。
-- 七大洲各自具有 Equal Earth `centerLon` 設定。
-- 俄羅斯、土耳其、哈薩克、亞塞拜然、喬治亞同時出現在歐洲與亞洲；埃及同時出現在非洲與亞洲。
-- 俄羅斯等明確跨洲國家的兩洲 geometry 不相同，代表洲內切分已生效。
-- 歐洲法國範例會移除遠距離海外 component，避免壓縮洲別地圖。
-- 暫不出題的國家會輸出完整 `excludedGroups.names`，不再只有數量。
-- app.js 使用洲別 `createContinentEqualEarthProjection()`，並先旋轉中央經線再 fit。
-- fitExtent 僅以可玩國家 geometry 為主，排除微型 context 對縮放比例的干擾。
+- 世界國家 placed label 在深色／淺色主題均使用明確的文字色與 halo。
+- 七大洲 metadata 含 `scaleBoost`，非洲／南美洲至少 1.10。
+- 大洋洲可玩清單固定為 `AU, NZ, PG, SB, VU, TL, NC, FJ`。
+- 大洋洲澳洲資料必須去重，不能出現兩張澳洲拼圖。
+- 紐西蘭 geometry 只保留兩個最大 polygon。
+- 斐濟限制主要島嶼 component，並使用大洋洲中央經線產生拼圖片預覽。
+- 東帝汶同時存在亞洲與大洋洲，但不標記為六個指定的跨洲國家之一。
+- 太平洋／大西洋／印度洋 polygon 在渲染前會用 `d3.geoArea()` 檢查 winding；若誤成球面 complement 會反轉 ring。
+- 北極海仍維持既有 circles，沒有新增 inset。
 
-## Build / Verify 煙霧測試
+## Build / Verify
 
-以符合正式套件介面的合成 node_modules 執行：
+正式驗證指令：
 
 ```bash
 npm run build
 npm run verify
 ```
 
-結果通過：
+`verify.mjs` 會額外檢查：
 
-- 22 縣市 / 368 鄉鎮市區。
-- 中國 33 塊。
-- 世界 7 大洲 / 4 海洋項目。
-- 世界國家第二層可正常產生。
-- 洲別中央經線 metadata、完整排除名單、跨洲國家雙洲資料與 `arcticInset:false` 驗證通過。
+- 大洋洲正好 8 個可玩 ISO2。
+- 澳洲只出現一次。
+- 紐西蘭只保留 2 個 polygon。
+- 東帝汶仍存在亞洲。
+- 世界國名高對比 CSS 已進入 dist。
+- 海洋 ring winding normalization 已接入 app。
+- `arcticInset` 仍為 `false`。
 
-### 限制
+### 本環境限制
 
-此環境未使用 npm Registry 下載正式 `world-atlas` / `countries-list` / `@svg-maps/china` 套件，因此 **Cloudflare `v1.05-testing` Preview 的真實 npm build 仍為正式驗收必要步驟**。
+本工作環境無法在時限內完成 npm Registry 套件下載，因此真正的 `world-atlas` / `countries-list` build 仍需由 Cloudflare `v1.05-testing` Preview 完成。單元測試不替代真實 Preview 圖形驗收。
 
-## Preview 實機驗收建議
+## Preview 實機驗收
 
-1. 歐洲：主體應明顯放大，不再被遠距離島嶼／海外部分縮到右上角。
-2. 亞洲、大洋洲：跨 180° 經線的小部分應留在本洲主體附近，不再分離到另一端造成大片空白。
-3. 北美洲：可玩國家主體盡量填滿地圖區。
-4. 排除說明：每一洲暫不出題國家都要逐名顯示。
-5. 跨洲國家：RU / TR / KZ / AZ / GE / EG 應在指定兩洲皆出現。
-6. 歐洲／美洲：遠距離海外領地不得影響主圖 extent。
-7. 太平洋、大西洋、印度洋：主要海盆多處可觸發，陸地不可誤判。
-8. 北極海：保持原 v1.05.6 世界主圖操作，不應出現新的獨立放大框。
+1. 深色與淺色：放上國家後，國名應清楚辨識。
+2. 非洲與南美洲：主體比 v1.05.7 更大，但不能被裁掉重要邊界。
+3. 大洋洲左側拼圖片應只有 8 個指定項目，澳洲只能出現一次。
+4. 紐西蘭拼圖只呈現南北兩大島。
+5. 斐濟拼圖不應因 180° 經線被拉成異常輪廓。
+6. 放入太平洋後，不能把大西洋、印度洋、北極海一起染成已完成顏色。
+7. 北極海維持原本世界主圖操作，不出現獨立放大框。

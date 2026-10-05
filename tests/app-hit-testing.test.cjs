@@ -46,7 +46,8 @@ test('World first layer uses Equal Earth, polygon ocean zones with Arctic fallba
   assert.match(app, /const WORLD_URL = 'data\/world-regions\.json'/);
   assert.match(app, /d3\.geoEqualEarth\(\)/);
   assert.match(app, /Array\.isArray\(ocean\?\.zones\)/);
-  assert.match(app, /geometry:\{ type:'Polygon', coordinates:\[ring\] \}/);
+  assert.match(app, /oceanPolygonFeature\(ring, ocean\.id\)/);
+  assert.match(app, /d3\.geoArea\(feature\) > Math\.PI \* 2/);
   assert.match(app, /d3\.geoCircle\(\)\.center\(circle\.center\)\.radius\(circle\.radius\)/);
   assert.match(app, /beginDrag\(event,\s*item,\s*'world-region'/);
   assert.match(app, /function renderWorldMap\(\)/);
@@ -64,7 +65,9 @@ test('World country layer is wired to local data, Equal Earth and shared hit tes
   assert.match(app, /beginDrag\(event,\s*country,\s*'world-country'/);
   assert.match(app, /data-level='world-country'|dataset\.level='world-country'/);
   assert.match(app, /createContinentEqualEarthProjection\(width,height,continent,collection/);
-  assert.match(app, /rotate\(\[-centerLon, 0, 0\]\)/);
+  assert.match(app, /rotate\(\[-Number\(centerLon \|\| 0\), 0, 0\]\)/);
+  assert.match(app, /projection\.scale\(projection\.scale\(\) \* boost\)/);
+  assert.match(app, /createRotatedEqualEarthProjection\(112, 76, feature, centerLon, 6\)/);
   assert.match(app, /filter\(country => country\.playable\)\.map\(featureFromRecord\)/);
   assert.match(app, /continent\.excludedGroups/);
 });

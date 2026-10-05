@@ -37,7 +37,7 @@
       mark: '🌍',
       title: '世界地圖',
       subtitle: '7 大洲＋3 大洋＋北極海 → 各洲國家',
-      description: 'Equal Earth 世界第一層與依洲分組的國家拼圖皆可遊玩；洲別地圖依各洲中央經線放大，並完整列出暫不出題的國家。',
+      description: 'Equal Earth 世界第一層與依洲分組的國家拼圖皆可遊玩；洲別地圖依各洲中央經線放大，大洋洲採指定 8 區教學白名單，並完整列出暫不出題的國家／地區。',
       speechModes: Object.freeze(['mandarin', 'english']),
       levels: Object.freeze([
         Object.freeze({
@@ -61,7 +61,8 @@
           smallRegionPolicy: 'exclude-with-full-name-list',
           projection: 'Equal Earth',
           continentProjectionProfiles: true,
-          transcontinentalPolicy: 'show-in-both-adjacent-continents'
+          transcontinentalPolicy: 'show-in-both-adjacent-continents',
+          oceaniaPlayableIso2: Object.freeze(['AU','NZ','PG','SB','VU','TL','NC','FJ'])
         })
       ])
     })

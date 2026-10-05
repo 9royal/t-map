@@ -4,17 +4,17 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#ffffff" />
-  <title>T map v1.05.7｜互動地圖拼圖</title>
-  <link rel="stylesheet" href="css/style.css?v=1.05.7" />
+  <title>T map v1.05.8｜互動地圖拼圖</title>
+  <link rel="stylesheet" href="css/style.css?v=1.05.8" />
 </head>
 <body>
   <main id="app" class="app-shell" aria-live="polite">
     <section id="screen-catalog" class="screen is-active" aria-labelledby="catalog-title">
       <header class="topbar">
         <div>
-          <p class="eyebrow">T map v1.05.7</p>
+          <p class="eyebrow">T map v1.05.8</p>
           <h1 id="catalog-title">互動地圖拼圖</h1>
-          <p class="subtitle">選擇一張地圖開始探索。v1.05.7：臺灣、中國省級行政區、世界第一層與各洲國家拼圖皆可遊玩。</p>
+          <p class="subtitle">選擇一張地圖開始探索。v1.05.8：強化世界國名對比、洲別放大、大洋洲 8 區拼圖與海洋提示。</p>
         </div>
         <div class="toolbar">
           <button class="button ghost theme-toggle" type="button" data-action="toggle-theme" aria-label="切換深色或淺色主題">🌙 深色</button>
@@ -23,13 +23,13 @@
       </header>
 
       <div id="map-catalog" class="map-catalog-grid" aria-label="可用地圖"></div>
-      <p class="source-note">v1.05.7：世界各洲國家拼圖已改為洲別 Equal Earth 放大，並完整列出暫不出題的國家與原因。</p>
+      <p class="source-note">v1.05.8：洲別 Equal Earth 再放大；大洋洲僅拼指定 8 區；已放置國名改為高對比顯示。</p>
     </section>
 
     <section id="screen-home" class="screen" aria-labelledby="home-title">
       <header class="topbar">
         <div>
-          <p class="eyebrow">T map v1.05.7</p>
+          <p class="eyebrow">T map v1.05.8</p>
           <h1 id="home-title">臺灣行政區</h1>
           <p class="subtitle">先拼出臺灣，再探索 22 縣市裡的鄉鎮市區。</p>
         </div>
@@ -65,13 +65,13 @@
         </aside>
       </div>
 
-      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.05.7</footer>
+      <footer class="source-note">行政區圖資：taiwan-atlas（由內政部國土測繪中心公開行政區界線轉製）｜T map v1.05.8</footer>
     </section>
 
     <section id="screen-taiwan" class="screen" aria-labelledby="taiwan-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.05.7 / 第一層</p>
+          <p class="eyebrow">T map v1.05.8 / 第一層</p>
           <h1 id="taiwan-title">臺灣 22 縣市拼圖</h1>
         </div>
         <div class="toolbar">
@@ -138,7 +138,7 @@
     <section id="screen-complete" class="screen" aria-labelledby="complete-title">
       <div class="completion-card">
         <div class="celebration" aria-hidden="true">🎉</div>
-        <p class="eyebrow">T map v1.05.7</p>
+        <p class="eyebrow">T map v1.05.8</p>
         <h1 id="complete-title">臺灣縣市拼圖完成！</h1>
         <p class="completion-lead">你已完成 22 / 22 個縣市。接下來可以把每一個縣市繼續拆開，探索其中的鄉、鎮、市、區。</p>
         <div id="complete-map" class="complete-map"></div>
@@ -155,7 +155,7 @@
     <section id="screen-explorer" class="screen" aria-labelledby="explorer-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.05.7 / 第二層入口</p>
+          <p class="eyebrow">T map v1.05.8 / 第二層入口</p>
           <h1 id="explorer-title">縣市探索總覽</h1>
           <p class="subtitle">選一個縣市，進入它的鄉鎮市區拼圖。</p>
         </div>
@@ -182,7 +182,7 @@
 
     <section id="screen-china" class="screen" aria-labelledby="china-title">
       <header class="topbar compact">
-        <div><p class="eyebrow">T map v1.05.7 / 中國省級行政區</p><h1 id="china-title">中國大陸省級行政區＋香港、澳門</h1><p class="subtitle">本模組共 33 塊；臺灣維持在獨立模組，不在此關重複出題。</p></div>
+        <div><p class="eyebrow">T map v1.05.8 / 中國省級行政區</p><h1 id="china-title">中國大陸省級行政區＋香港、澳門</h1><p class="subtitle">本模組共 33 塊；臺灣維持在獨立模組，不在此關重複出題。</p></div>
         <div class="toolbar"><button class="button ghost" type="button" data-action="go-catalog">← 地圖選擇</button><button class="button ghost theme-toggle" type="button" data-action="toggle-theme">🌙 深色</button><button class="button ghost" type="button" data-action="reset-china">重玩</button><button class="button ghost" type="button" data-action="open-help">說明</button></div>
       </header>
       <div class="statusbar">
@@ -207,7 +207,7 @@
     <section id="screen-world" class="screen" aria-labelledby="world-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.05.7 / 世界第一層</p>
+          <p class="eyebrow">T map v1.05.8 / 世界第一層</p>
           <h1 id="world-title">七大洲＋三大洋＋北極海拼圖</h1>
           <p class="subtitle">Equal Earth 等積投影完整呈現七大洲與南極大陸，再定位太平洋、大西洋、印度洋與北極海；完成後可進入各洲國家拼圖。</p>
         </div>
@@ -247,7 +247,7 @@
     <section id="screen-world-continents" class="screen" aria-labelledby="world-continents-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.05.7 / 世界第二層</p>
+          <p class="eyebrow">T map v1.05.8 / 世界第二層</p>
           <h1 id="world-continents-title">選擇洲別挑戰國家</h1>
           <p class="subtitle">依七大洲分組進入國家拼圖；各洲會使用自己的 Equal Earth 中央經線盡量放大主要國家區域。暫不出題的國家會逐名列出。南極洲沒有主權國家，因此不設國家拼圖。</p>
         </div>
@@ -264,7 +264,7 @@
     <section id="screen-world-country" class="screen" aria-labelledby="world-country-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.05.7 / 世界第二層</p>
+          <p class="eyebrow">T map v1.05.8 / 世界第二層</p>
           <h1 id="world-country-title">洲別國家拼圖</h1>
           <p class="subtitle">Equal Earth 等積投影；每洲使用自己的中央經線放大顯示，可用中文或 English 朗讀。暫不出題與版面裁切原因會在地圖下方逐名說明。</p>
         </div>
@@ -304,7 +304,7 @@
     <section id="screen-town" class="screen" aria-labelledby="town-title">
       <header class="topbar compact">
         <div>
-          <p class="eyebrow">T map v1.05.7 / 鄉鎮市區</p>
+          <p class="eyebrow">T map v1.05.8 / 鄉鎮市區</p>
           <h1 id="town-title">縣市行政區拼圖</h1>
         </div>
         <div class="toolbar">
@@ -355,7 +355,7 @@
     <form method="dialog" class="dialog-card">
       <h2>操作方式</h2>
       <ol>
-        <li>首頁先選擇地圖模組；v1.05.7 可遊玩臺灣、中國省級行政區、世界第一層七大洲＋三大洋＋北極海，以及依洲分組的世界國家拼圖。</li>
+        <li>首頁先選擇地圖模組；v1.05.8 可遊玩臺灣、中國省級行政區、世界第一層七大洲＋三大洋＋北極海，以及依洲分組的世界國家拼圖。</li>
         <li>點拼圖：選取並依設定朗讀名稱。臺灣地圖可切換國語／台語；台語依裝置語音支援。</li>
         <li>拖曳拼圖到地圖：文字標籤會跟隨指標，進入地圖後背景半透明；放對後自動吸附。手機／平板請從拼圖圖形本身開始拖曳，避免與頁面捲動衝突。</li>
         <li>一般碰觸變色在提示 ON／OFF 都會顯示，僅代表目前碰到的位置。</li>
@@ -425,11 +425,11 @@
 
   <script src="lib/d3.min.js"></script>
   <script src="lib/topojson-client.min.js"></script>
-  <script src="js/puzzle-hints.js?v=1.05.7"></script>
-  <script src="js/mobile-map.js?v=1.05.7"></script>
-  <script src="js/map-registry.js?v=1.05.7"></script>
-  <script src="js/map-engine.js?v=1.05.7"></script>
-  <script src="js/speech-profiles.js?v=1.05.7"></script>
-  <script src="js/app.js?v=1.05.7"></script>
+  <script src="js/puzzle-hints.js?v=1.05.8"></script>
+  <script src="js/mobile-map.js?v=1.05.8"></script>
+  <script src="js/map-registry.js?v=1.05.8"></script>
+  <script src="js/map-engine.js?v=1.05.8"></script>
+  <script src="js/speech-profiles.js?v=1.05.8"></script>
+  <script src="js/app.js?v=1.05.8"></script>
 </body>
 </html>
