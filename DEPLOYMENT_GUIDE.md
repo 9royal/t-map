@@ -1,8 +1,10 @@
-# T map v1.05.8 部署
+# T map v1.05.8 修正版部署
 
 ## GitHub / Cloudflare Pages
 
-繼續使用 `v1.05-testing` 先跑 Preview。
+本包維持 v1.05.8 版本號，修正東帝汶分類造成的部署驗證失敗。繼續使用 `v1.05-testing` 先跑 Preview。
+
+**請覆蓋整份更新包**，包含 `scripts/`、`tests/`、`js/`、`index.html`、`_headers`、`package.json` 與 `package-lock.json`，不要只替換 `verify.mjs`。
 
 Cloudflare Pages：
 
@@ -34,9 +36,19 @@ v1.05.8 沒有新增 npm 套件，沿用：
 建議 Commit：
 
 ```text
-T map v1.05.8 world display and Oceania fixes
+Fix T map v1.05.8 deployment and keep Timor-Leste only in Asia
 ```
 
 ## 北極海
 
 本版依需求維持原世界主圖感應方式，**不新增北極海獨立放大定位區**。
+
+## 修正版驗收
+
+1. Cloudflare log 中 `npm run build && npm run verify` 完整成功，不再出現「東帝汶應保留亞洲關卡」。
+2. 亞洲國家拼圖可找到「東帝汶」。
+3. 大洋洲只出現澳洲、紐西蘭、巴布亞紐幾內亞、索羅門群島、萬那杜、新喀里多尼亞、斐濟，共 7 區；東帝汶不出現在大洋洲。
+4. 世界第一層的東帝汶輪廓歸於亞洲。
+5. 開啟新的 Preview 網址檢查；若沿用已開啟的網頁，重新整理以載入修正版程式。
+
+本次已完成本機真實套件建置與驗證；Cloudflare 線上部署結果需在推送後確認。

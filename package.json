@@ -2,7 +2,7 @@
   "name": "t-map",
   "version": "1.5.8",
   "private": true,
-  "description": "T map v1.05.8 - 世界國名高對比、洲別再放大、大洋洲 8 區白名單與海洋高亮修正",
+  "description": "T map v1.05.8 修正版 - 東帝汶僅保留亞洲、大洋洲 7 區白名單與部署驗證修正",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",

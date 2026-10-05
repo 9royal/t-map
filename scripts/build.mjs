@@ -86,7 +86,7 @@ const stamp = {
   worldPlayableCountryCount,
   continentProjectionProfiles: true,
   continentScaleBoosts: true,
-  oceaniaPlayableIso2: ['AU','NZ','PG','SB','VU','TL','NC','FJ'],
+  oceaniaPlayableIso2: ['AU','NZ','PG','SB','VU','NC','FJ'],
   worldLabelHighContrast: true,
   oceanWindingNormalized: true,
   transcontinentalCountries: ['RU','TR','KZ','AZ','GE','EG'],

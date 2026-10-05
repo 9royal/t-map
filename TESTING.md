@@ -1,56 +1,53 @@
-# T map v1.05.8 測試紀錄
+# T map v1.05.8 修正版測試紀錄（2026-10-05）
 
-## 自動單元測試
+## 原錯誤重現
+
+修正前使用 package.json 指定的真實套件執行：
+
+```bash
+npm install --ignore-scripts --no-audit --no-fund
+npm run build && npm run verify
+```
+
+結果：build 成功；verify 在原第 110 行回報 `Error: 東帝汶應保留亞洲關卡。`，結束碼 1。這與使用者提供的 Cloudflare 畫面一致。
+
+已直接讀取 `countries-list 3.4.1`，確認 `countries.TL.continent` 為 `OC`，英文名為 `East Timor`。原單元測試 fixture 卻使用 `AS`，因此沒有覆蓋真實部署條件。
+
+## 修正版結果
 
 執行：
 
 ```bash
 npm test
-```
-
-目前結果：**63 / 63 通過**。
-
-v1.05.8 新增／更新重點：
-
-- 世界國家 placed label 在深色／淺色主題均使用明確的文字色與 halo。
-- 七大洲 metadata 含 `scaleBoost`，非洲／南美洲至少 1.10。
-- 大洋洲可玩清單固定為 `AU, NZ, PG, SB, VU, TL, NC, FJ`。
-- 大洋洲澳洲資料必須去重，不能出現兩張澳洲拼圖。
-- 紐西蘭 geometry 只保留兩個最大 polygon。
-- 斐濟限制主要島嶼 component，並使用大洋洲中央經線產生拼圖片預覽。
-- 東帝汶同時存在亞洲與大洋洲，但不標記為六個指定的跨洲國家之一。
-- 太平洋／大西洋／印度洋 polygon 在渲染前會用 `d3.geoArea()` 檢查 winding；若誤成球面 complement 會反轉 ring。
-- 北極海仍維持既有 circles，沒有新增 inset。
-
-## Build / Verify
-
-正式驗證指令：
-
-```bash
 npm run build
 npm run verify
 ```
 
-`verify.mjs` 會額外檢查：
+- 自動測試：**64 / 64 通過**，0 失敗、0 跳過。
+- Build：完成，結束碼 0。
+- Verify：全部通過，結束碼 0。
+- 執行環境：Node.js v24.19.0；本次未在 Cloudflare Node.js 22 環境執行。
+- 使用真實 `world-atlas 2.0.2`、`countries-list 3.4.1` 與 `topojson-client 3.1.0`，並非僅使用合成 fixture。
 
-- 大洋洲正好 8 個可玩 ISO2。
-- 澳洲只出現一次。
-- 紐西蘭只保留 2 個 polygon。
-- 東帝汶仍存在亞洲。
-- 世界國名高對比 CSS 已進入 dist。
-- 海洋 ring winding normalization 已接入 app。
-- `arcticInset` 仍為 `false`。
+## 重點檢查
 
-### 本環境限制
+- 東帝汶（TL）在世界第一層僅歸於亞洲。
+- 東帝汶在亞洲國家拼圖具有可用 geometry，且為可玩項目。
+- 東帝汶不存在任何亞洲以外的國家關卡，包括大洋洲的排除資料。
+- 對上游 metadata 為 OC、AS 或缺少 TL 資料的情況，均維持亞洲分類。
+- 大洋洲可玩清單正好為 `AU, NZ, PG, SB, VU, NC, FJ`，共 7 區。
+- 澳洲只有一筆；紐西蘭保留 2 個主島 polygon；斐濟限制主要島嶼元件。
+- 真實資料的臺灣 22 縣市／368 鄉鎮市區、中國 33 區、世界 7 洲與 4 個海洋感應項目通過既有完整性檢查。
+- 保留國名高對比、洲別 Equal Earth 放大、海洋 winding 正規化與原北極海主圖感應方式。
+- 世界兩份 JSON 請求加入 `20261005-timor-asia` 修訂參數；圖資回應改為重新驗證快取。
 
-本工作環境無法在時限內完成 npm Registry 套件下載，因此真正的 `world-atlas` / `countries-list` build 仍需由 Cloudflare `v1.05-testing` Preview 完成。單元測試不替代真實 Preview 圖形驗收。
+## 推送後實機驗收
 
-## Preview 實機驗收
+Cloudflare Preview 尚未由本次工作推送部署。請在 `v1.05-testing` 推送修正版後確認：
 
-1. 深色與淺色：放上國家後，國名應清楚辨識。
-2. 非洲與南美洲：主體比 v1.05.7 更大，但不能被裁掉重要邊界。
-3. 大洋洲左側拼圖片應只有 8 個指定項目，澳洲只能出現一次。
-4. 紐西蘭拼圖只呈現南北兩大島。
-5. 斐濟拼圖不應因 180° 經線被拉成異常輪廓。
-6. 放入太平洋後，不能把大西洋、印度洋、北極海一起染成已完成顏色。
-7. 北極海維持原本世界主圖操作，不出現獨立放大框。
+1. `npm run build && npm run verify` 完整成功。
+2. 亞洲可找到東帝汶，大洋洲沒有東帝汶，且拼圖片為 7 個。
+3. 世界第一層的東帝汶輪廓歸於亞洲。
+4. 紐西蘭、斐濟輪廓，以及深淺主題、海洋放置效果，依既有驗收方式檢查。
+
+證據來源：使用者提供之錯誤畫面、本專案原始碼、上述指定版本套件與本次本機執行結果。

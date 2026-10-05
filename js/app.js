@@ -8,6 +8,7 @@
   const CHINA_URL = 'data/china-provinces.json';
   const WORLD_URL = 'data/world-regions.json';
   const WORLD_COUNTRIES_URL = 'data/world-countries.json';
+  const WORLD_DATA_REVISION = '20261005-timor-asia';
   const ISLANDS = new Set(['澎湖縣', '金門縣', '連江縣']);
   const REGION_MAP = {
     '基隆市':'north','臺北市':'north','新北市':'north','桃園市':'north','新竹市':'north','新竹縣':'north','宜蘭縣':'north',
@@ -811,7 +812,7 @@
 
   async function ensureWorldData() {
     if (state.data.world?.continents?.length === 7 && state.data.world?.oceans?.length === 4) return state.data.world;
-    if (!worldDataPromise) worldDataPromise = fetch(WORLD_URL).then(r => { if (!r.ok) throw new Error('世界第一層圖資下載失敗。'); return r.json(); })
+    if (!worldDataPromise) worldDataPromise = fetch(`${WORLD_URL}?v=${WORLD_DATA_REVISION}`).then(r => { if (!r.ok) throw new Error('世界第一層圖資下載失敗。'); return r.json(); })
       .then(data => {
         if (data?.continents?.length !== 7 || data?.oceans?.length !== 4) throw new Error('世界第一層圖資不是 7 大洲＋3 大洋＋北極海。');
         state.data.world = data;
@@ -823,7 +824,7 @@
 
   async function ensureWorldCountriesData() {
     if (state.data.worldCountries?.continents?.length === 7) return state.data.worldCountries;
-    if (!worldCountriesDataPromise) worldCountriesDataPromise = fetch(WORLD_COUNTRIES_URL)
+    if (!worldCountriesDataPromise) worldCountriesDataPromise = fetch(`${WORLD_COUNTRIES_URL}?v=${WORLD_DATA_REVISION}`)
       .then(r => { if (!r.ok) throw new Error('世界國家圖資下載失敗。'); return r.json(); })
       .then(data => {
         if (data?.continents?.length !== 7) throw new Error('世界國家圖資不是七大洲分組。');

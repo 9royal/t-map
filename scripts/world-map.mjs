@@ -63,13 +63,10 @@ export const SMALL_COUNTRY_EXCLUDE_ISO2 = Object.freeze(new Set([
   'AD','AG','BH','BB','BN','CV','KM','DM','GD','KI','LI','MV','MT','MH','MU','FM','MC','NR','PW','KN','LC','VC','SM','ST','SC','SG','TO','TV','VA'
 ]));
 
-// v1.05.8: 大洋洲國家拼圖採教學白名單，只保留使用者指定的 8 個可玩區域。
+// v1.05.8 修正版：大洋洲國家拼圖採教學白名單，只保留指定的 7 個可玩區域。
 // NC（新喀里多尼亞）雖不是主權國家，仍作為本模組指定的可玩區域。
-// TL（東帝汶）保留亞洲既有分類，同時加入大洋洲教學關卡。
-export const OCEANIA_PLAYABLE_ISO2 = Object.freeze(new Set(['AU','NZ','PG','SB','VU','TL','NC','FJ']));
-const EXTRA_PUZZLE_CONTINENTS_BY_ISO2 = Object.freeze({
-  TL: Object.freeze(['OC'])
-});
+// TL（東帝汶）僅屬亞洲；由下方手動分類覆寫上游的 OC metadata。
+export const OCEANIA_PLAYABLE_ISO2 = Object.freeze(new Set(['AU','NZ','PG','SB','VU','NC','FJ']));
 
 // Overseas/dependent territories in Europe and the Americas are intentionally not
 // part of the sovereign-country puzzle in v1.05.8. Their names are still listed in
@@ -133,7 +130,7 @@ const MANUAL_CONTINENT_BY_NAME = Object.freeze({
 });
 
 const MANUAL_CONTINENT_BY_ISO2 = Object.freeze({
-  RU: 'AS', TR: 'AS', KZ: 'AS', EG: 'AF', GE: 'AS', AM: 'AS', AZ: 'AS', CY: 'AS', NC: 'OC'
+  RU: 'AS', TR: 'AS', KZ: 'AS', EG: 'AF', GE: 'AS', AM: 'AS', AZ: 'AS', CY: 'AS', NC: 'OC', TL: 'AS'
 });
 
 const NAME_ZH_OVERRIDES = Object.freeze({ XK: '科索沃' });
@@ -144,7 +141,7 @@ const EXCLUDED_REASON_LABELS = Object.freeze({
   'no-iso-code': '特殊／爭議圖資沒有可用 ISO 代碼，暫不列入拼圖',
   'no-geometry-in-continent': '洲別切分後沒有可用拼圖輪廓，暫不列入拼圖',
   'no-sovereign-country-puzzle': '本層沒有主權國家拼圖',
-  'not-in-oceania-whitelist': '本版大洋洲僅收錄指定 8 個拼圖對象，其他區域暫不列入拼圖',
+  'not-in-oceania-whitelist': '本版大洋洲僅收錄指定 7 個拼圖對象，其他區域暫不列入拼圖',
   'unclassified': '洲別資料未能分類，暫不列入拼圖'
 });
 
@@ -178,11 +175,7 @@ function continentCodesForFeature(feature, countryModule) {
   const iso2 = iso2FromFeature(feature);
   if (TRANS_CONTINENT_ISO2[iso2]) return TRANS_CONTINENT_ISO2[iso2].slice();
   const primary = primaryContinentCodeForFeature(feature, countryModule);
-  const codes = primary ? [primary] : [];
-  (EXTRA_PUZZLE_CONTINENTS_BY_ISO2[iso2] || []).forEach(code => {
-    if (!codes.includes(code)) codes.push(code);
-  });
-  return codes;
+  return primary ? [primary] : [];
 }
 
 function namesForFeature(feature, countryModule) {
@@ -368,7 +361,7 @@ function countryRecordForContinent(feature, countryModule, continentCode, allCon
   const isAntarctica = iso2 === 'AQ' || normalizeName(feature?.properties?.name) === 'antarctica';
   const dependentTerritory = !!iso2 && !!DEPENDENT_TERRITORY_EXCLUDE_BY_CONTINENT?.[continentCode]?.has(iso2);
   const oceaniaRestricted = continentCode === 'OC' && (!iso2 || !OCEANIA_PLAYABLE_ISO2.has(iso2));
-  // 大洋洲白名單以外的圖形不顯示在洲別目標圖，避免大量遠方島嶼壓縮或干擾指定 8 區。
+  // 大洋洲白名單以外的圖形不顯示在洲別目標圖，避免大量遠方島嶼壓縮或干擾指定 7 區。
   const geometry = (dependentTerritory || oceaniaRestricted) ? null : geometryForContinent(feature?.geometry, iso2, continentCode);
   const hasGeometry = !!geometry;
   const small = !!iso2 && SMALL_COUNTRY_EXCLUDE_ISO2.has(iso2);
@@ -557,9 +550,9 @@ export function normalizeWorldCountries(features, countryModule) {
       names: 'ISO 3166-1 / CLDR Traditional Chinese snapshot generated for T map',
       continentMetadata: 'countries-list 3.4.1 (MIT)'
     },
-    smallCountryPolicy: '手機洲別地圖上過小的國家先不列入拼圖；每一洲都會完整列出被排除國名與原因。大洋洲另採指定 8 區白名單。',
+    smallCountryPolicy: '手機洲別地圖上過小的國家先不列入拼圖；每一洲都會完整列出被排除國名與原因。大洋洲另採指定 7 區白名單。',
     territoryDisplayPolicy: '洲別國家拼圖以本洲主要領土為主；歐洲與美洲遠離本洲、會壓縮主圖的海外領地／遠距離附屬部分暫不顯示。',
-    transcontinentalPolicy: '俄羅斯、土耳其、哈薩克、亞塞拜然、喬治亞、埃及會在相鄰兩洲皆出現；邊界明確者顯示洲內部分，高加索邊界具多種慣例的喬治亞與亞塞拜然在兩洲皆保留完整國形。東帝汶另加入大洋洲教學白名單，不視為跨洲國家。',
+    transcontinentalPolicy: '俄羅斯、土耳其、哈薩克、亞塞拜然、喬治亞、埃及會在相鄰兩洲皆出現；邊界明確者顯示洲內部分，高加索邊界具多種慣例的喬治亞與亞塞拜然在兩洲皆保留完整國形。東帝汶僅保留在亞洲。',
     continents,
     unclassified
   };

@@ -48,5 +48,5 @@ test('World country layer is ready, grouped by continent and uses Equal Earth', 
   assert.equal(countries.continentProjectionProfiles, true);
   assert.equal(countries.transcontinentalPolicy, 'show-in-both-adjacent-continents');
   assert.equal(countries.projection, 'Equal Earth');
-  assert.deepEqual(countries.oceaniaPlayableIso2, ['AU','NZ','PG','SB','VU','TL','NC','FJ']);
+  assert.deepEqual(countries.oceaniaPlayableIso2, ['AU','NZ','PG','SB','VU','NC','FJ']);
 });

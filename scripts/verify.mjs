@@ -98,7 +98,7 @@ for (const [iso2,a,b] of transcontinentalPairs) {
 }
 
 const oceania = worldCountryContinents.find(x => x.code === 'OC');
-const expectedOceania = ['AU','FJ','NC','NZ','PG','SB','TL','VU'];
+const expectedOceania = ['AU','FJ','NC','NZ','PG','SB','VU'];
 const actualOceania = (oceania?.countries || []).filter(c => c.playable).map(c => c.iso2).sort();
 if (!oceania || actualOceania.join(',') !== expectedOceania.join(',')) {
   throw new Error(`大洋洲可玩白名單不一致：${actualOceania.join(',')}`);
@@ -107,7 +107,9 @@ if ((oceania.countries || []).filter(c => c.iso2 === 'AU').length !== 1) throw n
 const nz = oceania.countries.find(c => c.iso2 === 'NZ');
 const nzPolygons = nz?.geometry?.type === 'Polygon' ? 1 : nz?.geometry?.type === 'MultiPolygon' ? nz.geometry.coordinates.length : 0;
 if (nzPolygons !== 2) throw new Error(`紐西蘭應只保留南北兩大島，實際 polygon 數：${nzPolygons}`);
-if (!worldCountryContinents.find(x=>x.code==='AS')?.countries?.some(c=>c.iso2==='TL')) throw new Error('東帝汶應保留亞洲關卡。');
+if (!worldCountryContinents.find(x=>x.code==='AS')?.countries?.some(c=>c.iso2==='TL' && c.playable && c.geometry && !c.transcontinental)) throw new Error('東帝汶應保留亞洲可玩關卡。');
+if (worldCountryContinents.some(x=>x.code!=='AS' && x.countries?.some(c=>c.iso2==='TL'))) throw new Error('東帝汶不應出現在亞洲以外的國家關卡。');
+if (!worldContinents.find(x=>x.code==='AS')?.features?.some(f=>f.iso2==='TL') || worldContinents.some(x=>x.code!=='AS' && x.features?.some(f=>f.iso2==='TL'))) throw new Error('世界第一層東帝汶應僅屬亞洲。');
 
 const pkg = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const version = (await readFile(path.join(root, 'VERSION'), 'utf8')).trim();
@@ -146,7 +148,7 @@ const checks = [
   [info.worldPlayableCountryCount === playableCountryCount, 'build-info 世界國家可玩數量不一致'],
   [info.continentProjectionProfiles === true, 'build-info 未標記洲別投影設定'],
   [info.continentScaleBoosts === true, 'build-info 未標記洲別再放大設定'],
-  [Array.isArray(info.oceaniaPlayableIso2) && info.oceaniaPlayableIso2.slice().sort().join(',') === expectedOceania.join(','), 'build-info 大洋洲 8 區白名單不一致'],
+  [Array.isArray(info.oceaniaPlayableIso2) && info.oceaniaPlayableIso2.slice().sort().join(',') === expectedOceania.join(','), 'build-info 大洋洲 7 區白名單不一致'],
   [info.worldLabelHighContrast === true && style.includes('--world-label-fill') && style.includes('--world-label-halo'), '世界地圖高對比國名樣式未接入'],
   [info.oceanWindingNormalized === true && app.includes('d3.geoArea(feature) > Math.PI * 2'), '海洋多邊形環繞方向修正未接入'],
   [info.arcticInset === false, 'v1.05.8 不應啟用北極海獨立放大框'],
@@ -160,4 +162,4 @@ console.log(`✓ 臺灣行政區資料完整：${c} 縣市 / ${t} 鄉鎮市區`)
 console.log('✓ 中國模組資料完整：33 塊（香港、澳門存在；臺灣未重複）');
 console.log('✓ 世界第一層：Equal Earth 等積投影、南極大陸、7 大洲＋3 大洋＋北極海');
 console.log(`✓ 世界第二層：七大洲國家分組，可玩國家 ${playableCountryCount}，小國保留但暫不出題`);
-console.log('✓ v1.05.8 高對比國名、洲別再放大、大洋洲 8 區白名單、紐西蘭南北島與海洋高亮修正一致');
+console.log('✓ v1.05.8 修正版：東帝汶僅屬亞洲；大洋洲 7 區白名單、國名對比、洲別放大與海洋高亮一致');

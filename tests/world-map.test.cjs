@@ -54,7 +54,7 @@ function fixture() {
     CN:{name:'China',continent:'AS'}, FR:{name:'France',continent:'EU'}, ZA:{name:'South Africa',continent:'AF'},
     US:{name:'United States',continent:'NA'}, PR:{name:'Puerto Rico',continent:'NA'}, BR:{name:'Brazil',continent:'SA'}, AU:{name:'Australia',continent:'OC'},
     NZ:{name:'New Zealand',continent:'OC'}, PG:{name:'Papua New Guinea',continent:'OC'}, SB:{name:'Solomon Islands',continent:'OC'},
-    VU:{name:'Vanuatu',continent:'OC'}, TL:{name:'Timor-Leste',continent:'AS'}, NC:{name:'New Caledonia',continent:'OC'}, FJ:{name:'Fiji',continent:'OC'}, WS:{name:'Samoa',continent:'OC'},
+    VU:{name:'Vanuatu',continent:'OC'}, TL:{name:'East Timor',continent:'OC'}, NC:{name:'New Caledonia',continent:'OC'}, FJ:{name:'Fiji',continent:'OC'}, WS:{name:'Samoa',continent:'OC'},
     AQ:{name:'Antarctica',continent:'AN'}, SG:{name:'Singapore',continent:'AS'}, RU:{name:'Russia',continent:'EU'},
     TR:{name:'Turkey',continent:'AS'}, KZ:{name:'Kazakhstan',continent:'AS'}, AZ:{name:'Azerbaijan',continent:'AS'},
     GE:{name:'Georgia',continent:'AS'}, EG:{name:'Egypt',continent:'AF'}
@@ -104,14 +104,14 @@ test('continent profiles use extra scale boost, especially Africa and South Amer
   assert.ok(out.continents.filter(x=>x.code!=='AN').every(x => x.projection.scaleBoost >= 1));
 });
 
-test('Oceania puzzle is deduplicated and restricted to the requested eight playable regions', async () => {
+test('Oceania puzzle is deduplicated and restricted to the requested seven playable regions', async () => {
   const mod = await load();
   const {features,countryModule} = fixture();
   const out = mod.normalizeWorldCountries(features,countryModule);
   const oc = out.continents.find(x=>x.code==='OC');
   const playable = oc.countries.filter(x=>x.playable);
-  assert.deepEqual(new Set(playable.map(x=>x.iso2)), new Set(['AU','NZ','PG','SB','VU','TL','NC','FJ']));
-  assert.equal(playable.length, 8);
+  assert.deepEqual(new Set(playable.map(x=>x.iso2)), new Set(['AU','NZ','PG','SB','VU','NC','FJ']));
+  assert.equal(playable.length, 7);
   assert.equal(oc.countries.filter(x=>x.iso2==='AU').length, 1, 'Australia must not be duplicated');
   const excluded = oc.excludedGroups.find(x=>x.reason==='not-in-oceania-whitelist');
   assert.ok(excluded);
@@ -131,15 +131,41 @@ test('New Zealand keeps only its two largest main islands and Fiji drops remote 
   assert.equal(fj.playable, true);
 });
 
-test('Timor-Leste remains in Asia and is additionally available in the Oceania teaching puzzle', async () => {
+test('Timor-Leste appears only in Asia in both layers regardless of upstream metadata', async () => {
   const mod = await load();
-  const {features,countryModule} = fixture();
+  for (const continent of ['OC', 'AS', undefined]) {
+    const {features,countryModule} = fixture();
+    if (continent) countryModule.countries.TL.continent = continent;
+    else delete countryModule.countries.TL;
+    const out = mod.normalizeWorldCountries(features,countryModule);
+    const asia = out.continents.find(x=>x.code==='AS').countries.find(x=>x.iso2==='TL');
+    assert.ok(asia?.playable, `TL must be playable with upstream continent ${continent}`);
+    assert.ok(asia.geometry);
+    assert.equal(asia.transcontinental, false);
+    assert.deepEqual(asia.continents, ['AS']);
+    assert.equal(out.continents.some(x=>x.code!=='AS' && x.countries.some(c=>c.iso2==='TL')), false);
+    const world = mod.normalizeWorldMap(features,countryModule);
+    assert.ok(world.continents.find(x=>x.code==='AS').features.some(x=>x.iso2==='TL'));
+    assert.equal(world.continents.some(x=>x.code!=='AS' && x.features.some(f=>f.iso2==='TL')), false);
+  }
+});
+
+test('real pinned atlas and country metadata keep Timor-Leste only in Asia and seven Oceania targets', async () => {
+  const mod = await load();
+  const countryModule = await import('countries-list');
+  const topology = require('world-atlas/countries-50m.json');
+  const features = require('topojson-client').feature(topology, topology.objects.countries).features;
+  // This is the production metadata that exposed the deployment failure.
+  assert.equal(countryModule.countries.TL.continent, 'OC');
   const out = mod.normalizeWorldCountries(features,countryModule);
-  const asia = out.continents.find(x=>x.code==='AS').countries.find(x=>x.iso2==='TL');
-  const oceania = out.continents.find(x=>x.code==='OC').countries.find(x=>x.iso2==='TL');
-  assert.ok(asia);
-  assert.ok(oceania?.playable);
-  assert.equal(oceania.transcontinental, false);
+  const tl = out.continents.find(x=>x.code==='AS').countries.find(x=>x.iso2==='TL');
+  assert.ok(tl?.playable && tl.geometry);
+  assert.equal(out.continents.some(x=>x.code!=='AS' && x.countries.some(c=>c.iso2==='TL')), false);
+  const oceania = out.continents.find(x=>x.code==='OC');
+  assert.deepEqual(oceania.countries.filter(x=>x.playable).map(x=>x.iso2).sort(), ['AU','FJ','NC','NZ','PG','SB','VU']);
+  const world = mod.normalizeWorldMap(features,countryModule);
+  assert.ok(world.continents.find(x=>x.code==='AS').features.some(x=>x.iso2==='TL'));
+  assert.equal(world.continents.some(x=>x.code!=='AS' && x.features.some(f=>f.iso2==='TL')), false);
 });
 
 test('requested transcontinental countries appear in both adjacent continent puzzles', async () => {
