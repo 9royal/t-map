@@ -79,7 +79,7 @@ if (!worldData.continents.find(item => item.code === 'AN')?.features?.length) th
 if (worldPlayableCountryCount < 120) throw new Error(`世界國家可玩數量異常：${worldPlayableCountryCount}`);
 
 const stamp = {
-  app: 'T map', version: '1.05.8', builtAt: new Date().toISOString(), localizedAssets: true,
+  app: 'T map', version: '1.05.9', builtAt: new Date().toISOString(), localizedAssets: true,
   countyCount, townCount, chinaProvincialCount: chinaCount,
   worldProjection: 'Equal Earth', worldContinentCount, worldOceanCount,
   worldFirstLevelCount: worldContinentCount + worldOceanCount,
@@ -95,4 +95,4 @@ const stamp = {
   platformMaps: ['taiwan', 'china-provincial', 'world'], readyMaps: ['taiwan', 'china-provincial', 'world']
 };
 await writeFile(path.join(dist, 'build-info.json'), JSON.stringify(stamp, null, 2) + '\n', 'utf8');
-console.log(`T map v1.05.8 build completed: ${countyCount} counties, ${townCount} towns, ${chinaCount} China provincial regions, ${worldContinentCount} continents + ${worldOceanCount} oceans, ${worldPlayableCountryCount} playable countries.`);
+console.log(`T map v1.05.9 build completed: ${countyCount} counties, ${townCount} towns, ${chinaCount} China provincial regions, ${worldContinentCount} continents + ${worldOceanCount} oceans, ${worldPlayableCountryCount} playable countries.`);

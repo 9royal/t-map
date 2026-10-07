@@ -109,6 +109,14 @@ h2 { margin-bottom: 12px; }
 .target-region.is-placed { fill: var(--placed-fill); stroke: var(--placed-stroke); stroke-width: 2.1; }
 .target-region.is-filtered { opacity: .18; pointer-events: none; }
 .map-label { font-size: 11px; font-weight: 850; fill: var(--placed-label); paint-order: stroke; stroke: var(--placed-stroke); stroke-width: 3px; stroke-linejoin: round; pointer-events: none; }
+/* Keep map shapes readable while choosing or dragging a piece. Name settings
+   still control the normal display after positioning finishes. */
+body.is-positioning-piece .map-label,
+body.is-positioning-piece .island-name,
+body.is-positioning-piece .china-inset-name { visibility: hidden; }
+.map-magnifier .map-label { display: none !important; }
+.cancel-selection { margin-left: 8px; padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--card); color: var(--muted); font: inherit; font-size: .8rem; cursor: pointer; }
+.cancel-selection[hidden] { display: none; }
 .island-grid { display: grid; gap: 10px; }
 .island-box { border: 1px dashed var(--border); border-radius: 14px; padding: 8px; background: var(--map-bg); }
 .island-box > span { display: block; font-size: .9rem; font-weight: 800; color: var(--muted); }

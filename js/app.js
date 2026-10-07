@@ -1,14 +1,14 @@
 (() => {
   'use strict';
 
-  const VERSION = '1.05.8';
+  const VERSION = '1.05.9';
   const STORAGE_KEY = 'tmap-v1-state';
   const COUNTY_URL = 'data/counties-10t.json';
   const TOWN_URL = 'data/towns-10t.json';
   const CHINA_URL = 'data/china-provinces.json';
   const WORLD_URL = 'data/world-regions.json';
   const WORLD_COUNTRIES_URL = 'data/world-countries.json';
-  const WORLD_DATA_REVISION = '20261005-timor-asia';
+  const WORLD_DATA_REVISION = '20261007-puzzle-labels';
   const ISLANDS = new Set(['澎湖縣', '金門縣', '連江縣']);
   const REGION_MAP = {
     '基隆市':'north','臺北市':'north','新北市':'north','桃園市':'north','新竹市':'north','新竹縣':'north','宜蘭縣':'north',
@@ -80,13 +80,38 @@
   }
 
   function setSelectedDisplay(level, name = null) {
-    const text = name ? (state.settings.labels ? name : '已選取一塊拼圖') : '尚未選取';
+    const feature = state.selected?.level === level ? state.selected.feature : null;
+    const text = name ? (state.settings.labels ? displayRegionName(feature, level, name) : '已選取一塊拼圖') : '尚未選取';
     const ids = level === 'county' ? ['#selected-name', '#taiwan-mobile-selected']
       : level === 'town' ? ['#town-selected-name', '#town-mobile-selected']
       : level === 'china-province' ? ['#china-selected-name', '#china-mobile-selected']
       : level === 'world-country' ? ['#world-country-selected-name', '#world-country-mobile-selected']
       : ['#world-selected-name', '#world-mobile-selected'];
-    ids.forEach(id => { const el = $(id); if (el) el.textContent = text; });
+    ids.forEach(id => {
+      const el = $(id);
+      if (!el) return;
+      el.textContent = text;
+      let button = el.nextElementSibling;
+      if (button?.dataset.action !== 'cancel-selection') {
+        button = document.createElement('button');
+        button.type = 'button'; button.className = 'cancel-selection';
+        button.dataset.action = 'cancel-selection'; button.dataset.selectionLevel = level;
+        button.textContent = '取消選取'; el.after(button);
+      }
+      button.hidden = !state.selected || state.selected.level !== level;
+    });
+    syncPuzzleLabelVisibility();
+  }
+
+  function syncPuzzleLabelVisibility() {
+    document.body.classList.toggle('is-positioning-piece', !!(state.selected || state.drag));
+  }
+
+  function clearPuzzleSelection() {
+    if (state.drag) endDrag(true);
+    state.selected = null;
+    $$('.piece-card.is-selected').forEach(el => el.classList.remove('is-selected'));
+    clearNearTargets(); hideMagnifier(); updateSettingChips();
   }
 
   function setDrawerState(panel, drawerState = 'collapsed') {
@@ -446,6 +471,7 @@
       const clone = source.cloneNode(true);
       clone.removeAttribute('id');
       clone.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
+      clone.querySelectorAll('.map-label, .island-name, .china-inset-name').forEach(el => el.remove());
       clone.removeAttribute('role');
       clone.setAttribute('aria-hidden', 'true');
       mag.surface.append(clone);
@@ -464,7 +490,7 @@
     });
     mag.el.style.left = `${geometry.left}px`;
     mag.el.style.top = `${geometry.top}px`;
-    mag.label.textContent = state.settings.labels ? drag.name : '行政區拼圖';
+    mag.label.textContent = state.settings.labels ? displayRegionName(drag.feature, drag.level, drag.name) : '行政區拼圖';
     mag.el.classList.add('is-visible');
     drag.usingMagnifier = true;
     drag.aimX = geometry.centerX;
@@ -489,7 +515,9 @@
     const candidate = nearestTargetAt(event.clientX, event.clientY, level, radius, svg);
     if (!candidate) return;
     flashTarget(candidate);
-    if (!state.selected || state.selected.level !== level) speak(candidate.dataset.regionName);
+    if (!state.selected || state.selected.level !== level) {
+      speak(state.settings.speechMode === 'english' ? (candidate.dataset.regionNameEn || candidate.dataset.regionName) : (candidate.dataset.displayName || candidate.dataset.regionName));
+    }
     else attemptPlacement(candidate.dataset.regionName, level);
   }
 
@@ -658,7 +686,7 @@
   }
 
   function showScreen(name, remember = true) {
-    if (state.drag) endDrag(true);
+    clearPuzzleSelection();
     hideMagnifier();
     collapseAllDrawers();
     clearNearTargets();
@@ -702,11 +730,16 @@
     return String(feature?.name || feature?.shortName || '').trim();
   }
 
+  function displayRegionName(feature, level, fallback = '') {
+    if (level === 'world-country') return feature?.displayName || fallback || regionName(feature, level);
+    return fallback || regionName(feature, level);
+  }
+
   function spokenRegionName(feature, level, fallback = '') {
     if ((level === 'world-region' || level === 'world-country') && state.settings.speechMode === 'english') {
-      return String(feature?.nameEn || fallback || regionName(feature, level)).trim();
+      return String(feature?.displayNameEn || feature?.nameEn || fallback || regionName(feature, level)).trim();
     }
-    return fallback || regionName(feature, level);
+    return displayRegionName(feature, level, fallback);
   }
 
   function countyCode(feature) {
@@ -850,7 +883,7 @@
     const pad = Number(continent?.projection?.fitPadding || fallbackPad);
     const boost = Math.max(1, Math.min(1.18, Number(continent?.projection?.scaleBoost || 1)));
     // Rotate the antimeridian away from the active continent before fitting.
-    // v1.05.8 then applies a modest per-continent scale boost so Africa/South
+    // v1.05.9 then applies a modest per-continent scale boost so Africa/South
     // America and the other continent puzzles use more of the available panel.
     const projection = createRotatedEqualEarthProjection(width, height, object, centerLon, pad);
     if (boost > 1) projection.scale(projection.scale() * boost);
@@ -1046,6 +1079,12 @@
     hideMagnifier();
     clearNearTargets();
     state.drag = null;
+    if (cancelled) {
+      state.selected = null;
+      $$('.piece-card.is-selected').forEach(el => el.classList.remove('is-selected'));
+      setSelectedDisplay(drag.level);
+    }
+    syncPuzzleLabelVisibility();
     if (drag.active) {
       drag.source.dataset.suppressClick = 'true';
       // The following synthetic click is consumed by the piece's click handler.
@@ -1087,7 +1126,7 @@
     const name = regionName(feature, level);
     const ghost = document.createElement('div');
     ghost.className = 'drag-ghost';
-    ghost.textContent = state.settings.labels ? name : '行政區拼圖';
+    ghost.textContent = state.settings.labels ? displayRegionName(feature, level, name) : '行政區拼圖';
     ghost.setAttribute('aria-hidden', 'true');
     document.body.append(ghost);
     moveGhost(ghost, event.clientX, event.clientY);
@@ -1156,7 +1195,7 @@
     const level = event.currentTarget.dataset.level;
     if (!state.selected || state.selected.level !== level) {
       const spoken = (level === 'world-region' || level === 'world-country') && state.settings.speechMode === 'english'
-        ? (event.currentTarget.dataset.regionNameEn || targetName) : targetName;
+        ? (event.currentTarget.dataset.regionNameEn || targetName) : (event.currentTarget.dataset.displayName || targetName);
       speak(spoken);
       return;
     }
@@ -1213,7 +1252,7 @@
       const progress = worldCountryProgress(continent);
       if (!progress.includes(name)) progress.push(name);
       speak(spokenRegionName(feature, level, name));
-      setFeedback($('#world-country-feedback'), `答對了：${name}！`, 'good');
+      setFeedback($('#world-country-feedback'), `答對了：${displayRegionName(feature, level, name)}！`, 'good');
       state.selected = null;
       saveState();
       renderWorldCountryMap();
@@ -1486,7 +1525,7 @@
     if (Array.isArray(ocean?.zones) && ocean.zones.length) {
       return ocean.zones.map(ring => oceanPolygonFeature(ring, ocean.id));
     }
-    // Arctic Ocean intentionally keeps the v1.05.6 main-map circles in v1.05.8.
+    // Arctic Ocean intentionally keeps the v1.05.6 main-map circles in v1.05.9.
     return (ocean.circles || []).map(circle => d3.geoCircle().center(circle.center).radius(circle.radius).precision(4)());
   }
 
@@ -1569,7 +1608,9 @@
 
   function worldCountryProgress(continent = worldContinentData()) {
     if (!continent) return [];
-    state.progress.worldCountries[continent.id] ||= [];
+    const playableNames = new Set(playableWorldCountries(continent).map(country => country.name));
+    const saved = state.progress.worldCountries[continent.id];
+    state.progress.worldCountries[continent.id] = [...new Set(Array.isArray(saved) ? saved : [])].filter(name => playableNames.has(name));
     return state.progress.worldCountries[continent.id];
   }
 
@@ -1638,8 +1679,9 @@
       button.type = 'button';
       button.className = 'piece-card world-country-piece-card' + (state.settings.labels ? '' : ' hide-label');
       button.dataset.pieceName = country.name;
+      button.setAttribute('aria-label', country.displayName || country.name);
       button.append(renderWorldCountryPreview(country));
-      const label = document.createElement('span'); label.className='piece-name'; label.textContent=country.name; button.append(label);
+      const label = document.createElement('span'); label.className='piece-name'; label.textContent=country.displayName || country.name; button.append(label);
       button.addEventListener('click', event => {
         if (button.dataset.suppressClick) { event.preventDefault(); event.stopPropagation(); delete button.dataset.suppressClick; return; }
         selectPiece(country, 'world-country', button);
@@ -1658,8 +1700,9 @@
     path.setAttribute('d', d3.geoPath(projection)(feature) || '');
     path.setAttribute('class', `target-region world-country-target${placedNames.includes(country.name) ? ' is-placed' : ''}`);
     path.setAttribute('tabindex','0'); path.setAttribute('role','button');
-    path.dataset.regionName=country.name; path.dataset.regionNameEn=country.nameEn || country.name; path.dataset.level='world-country';
-    path.setAttribute('aria-label',country.name);
+    path.dataset.regionName=country.name; path.dataset.regionNameEn=country.displayNameEn || country.nameEn || country.name; path.dataset.level='world-country';
+    path.dataset.displayName=country.displayName || country.name;
+    path.setAttribute('aria-label',country.displayName || country.name);
     path.__tmapProjectedGeometry = projectFeatureGeometry(feature, projection);
     path.addEventListener('pointerenter', () => { if (!state.drag && !path.classList.contains('is-placed')) setRegionClass(path,'is-hovered',true); });
     path.addEventListener('pointerleave', () => { if (!state.drag) setRegionClass(path,'is-hovered',false); });
@@ -1698,7 +1741,7 @@
       if (!centroid.every(Number.isFinite)) return;
       const text=document.createElementNS('http://www.w3.org/2000/svg','text');
       text.setAttribute('class','map-label world-country-label'); text.dataset.regionName=country.name; text.dataset.level='world-country';
-      text.setAttribute('text-anchor','middle'); text.setAttribute('x',centroid[0]); text.setAttribute('y',centroid[1]); text.style.display=state.settings.labels?'':'none'; text.textContent=country.name;
+      text.setAttribute('text-anchor','middle'); text.setAttribute('x',centroid[0]); text.setAttribute('y',centroid[1]); text.style.display=state.settings.labels?'':'none'; text.textContent=country.displayName || country.name;
       svgEl.append(text);
     });
     bindMobileMap(svgEl,'world-country');
@@ -2194,12 +2237,14 @@
     bindDrawerGestures();
     document.addEventListener('keydown', event => {
       if (event.key === 'Tab' || event.key.startsWith('Arrow')) document.body.classList.add('keyboard-nav');
+      if (event.key === 'Escape' && (state.selected || state.drag)) clearPuzzleSelection();
     }, true);
     document.addEventListener('pointerdown', () => document.body.classList.remove('keyboard-nav'), true);
     document.addEventListener('pointerdown', () => ensureAudioContext(), { once: true, passive: true });
     document.addEventListener('click', event => {
       const action = event.target.closest('[data-action]')?.dataset.action;
       if (!action) return;
+      if (action === 'cancel-selection') clearPuzzleSelection();
       if (action === 'open-map') openMapModule(event.target.closest('[data-map-id]')?.dataset.mapId || event.target.dataset.mapId);
       if (action === 'go-catalog') openPlatformCatalog();
       if (action === 'start-taiwan') openTaiwanPuzzle();
@@ -2280,7 +2325,7 @@
 
   function showLoadError(err) {
     console.error(err);
-    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.8</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.8 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
+    document.querySelector('#app').innerHTML = `<section class="error-card"><p class="eyebrow">T map v1.05.9</p><h1>地圖資料沒有成功載入</h1><p>本機行政區圖資沒有成功載入。請確認網站已執行 v1.05.9 建置流程，且 data/ 與 lib/ 目錄完整；若在本機測試，請使用 npm run preview 開啟，不要直接雙擊 index.html。</p><p><strong>錯誤：</strong>${String(err.message || err)}</p></section>`;
   }
 
   async function init() {

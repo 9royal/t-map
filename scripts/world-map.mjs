@@ -25,7 +25,7 @@ export const WORLD_CONTINENT_PROFILES = Object.freeze({
 
 // Pacific / Atlantic / Indian Ocean use coarse geographic polygons rather than a
 // few isolated circles. Arctic Ocean intentionally keeps the v1.05.6 circles for
-// this release; there is no separate Arctic inset in v1.05.8.
+// this release; there is no separate Arctic inset in v1.05.9.
 export const WORLD_OCEANS = Object.freeze([
   Object.freeze({
     id: 'pacific-ocean', name: '太平洋', nameEn: 'Pacific Ocean', labels: [[-150, 5], [165, 3]],
@@ -63,13 +63,19 @@ export const SMALL_COUNTRY_EXCLUDE_ISO2 = Object.freeze(new Set([
   'AD','AG','BH','BB','BN','CV','KM','DM','GD','KI','LI','MV','MT','MH','MU','FM','MC','NR','PW','KN','LC','VC','SM','ST','SC','SG','TO','TV','VA'
 ]));
 
-// v1.05.8 修正版：大洋洲國家拼圖採教學白名單，只保留指定的 7 個可玩區域。
+// v1.05.9 修正版：大洋洲國家拼圖採教學白名單，只保留指定的 7 個可玩區域。
 // NC（新喀里多尼亞）雖不是主權國家，仍作為本模組指定的可玩區域。
 // TL（東帝汶）僅屬亞洲；由下方手動分類覆寫上游的 OC metadata。
 export const OCEANIA_PLAYABLE_ISO2 = Object.freeze(new Set(['AU','NZ','PG','SB','VU','NC','FJ']));
 
+// Teaching exclusions requested for the Asia country puzzle. Keep the names in
+// the exclusion note even when an atlas resolution omits their geometry.
+export const PUZZLE_EXCLUDE_BY_CONTINENT = Object.freeze({
+  AS: Object.freeze(new Set(['IO','MO','HK','PS']))
+});
+
 // Overseas/dependent territories in Europe and the Americas are intentionally not
-// part of the sovereign-country puzzle in v1.05.8. Their names are still listed in
+// part of the sovereign-country puzzle in v1.05.9. Their names are still listed in
 // the explanatory note instead of disappearing silently.
 export const DEPENDENT_TERRITORY_EXCLUDE_BY_CONTINENT = Object.freeze({
   EU: Object.freeze(new Set(['AX','FO','GI','GG','IM','JE','SJ'])),
@@ -142,6 +148,7 @@ const EXCLUDED_REASON_LABELS = Object.freeze({
   'no-geometry-in-continent': '洲別切分後沒有可用拼圖輪廓，暫不列入拼圖',
   'no-sovereign-country-puzzle': '本層沒有主權國家拼圖',
   'not-in-oceania-whitelist': '本版大洋洲僅收錄指定 7 個拼圖對象，其他區域暫不列入拼圖',
+  'teaching-exclusion': '本版教學設定暫不列入拼圖',
   'unclassified': '洲別資料未能分類，暫不列入拼圖'
 });
 
@@ -359,17 +366,19 @@ function geometryForContinent(baseGeometry, iso2, continentCode) {
 function countryRecordForContinent(feature, countryModule, continentCode, allContinentCodes) {
   const { iso2, nameEn, nameZh } = namesForFeature(feature, countryModule);
   const isAntarctica = iso2 === 'AQ' || normalizeName(feature?.properties?.name) === 'antarctica';
+  const teachingExcluded = !!iso2 && !!PUZZLE_EXCLUDE_BY_CONTINENT?.[continentCode]?.has(iso2);
   const dependentTerritory = !!iso2 && !!DEPENDENT_TERRITORY_EXCLUDE_BY_CONTINENT?.[continentCode]?.has(iso2);
   const oceaniaRestricted = continentCode === 'OC' && (!iso2 || !OCEANIA_PLAYABLE_ISO2.has(iso2));
   // 大洋洲白名單以外的圖形不顯示在洲別目標圖，避免大量遠方島嶼壓縮或干擾指定 7 區。
-  const geometry = (dependentTerritory || oceaniaRestricted) ? null : geometryForContinent(feature?.geometry, iso2, continentCode);
+  const geometry = (teachingExcluded || dependentTerritory || oceaniaRestricted) ? null : geometryForContinent(feature?.geometry, iso2, continentCode);
   const hasGeometry = !!geometry;
   const small = !!iso2 && SMALL_COUNTRY_EXCLUDE_ISO2.has(iso2);
-  const playable = !isAntarctica && !dependentTerritory && !oceaniaRestricted && !!iso2 && hasGeometry && !small;
+  const playable = !isAntarctica && !teachingExcluded && !dependentTerritory && !oceaniaRestricted && !!iso2 && hasGeometry && !small;
   const originalCount = geometryCoordinateCount(feature?.geometry);
   const displayCount = geometryCoordinateCount(geometry);
   const trimmed = hasGeometry && originalCount > 0 && displayCount < originalCount * 0.97;
   const transcontinental = !!TRANS_CONTINENT_ISO2[iso2];
+  const continent = WORLD_CONTINENTS.find(item => item.code === continentCode);
   const splitRule = TRANS_CONTINENT_SPLITS?.[iso2]?.[continentCode] || null;
   return {
     id: `${String(feature?.id ?? (iso2 || nameEn))}-${continentCode}`,
@@ -377,12 +386,15 @@ function countryRecordForContinent(feature, countryModule, continentCode, allCon
     iso2,
     name: nameZh,
     nameEn,
+    displayName: transcontinental ? `${nameZh}(${continent.name}部分)` : nameZh,
+    displayNameEn: transcontinental ? `${nameEn} (${continent.nameEn} part)` : nameEn,
     continent: continentCode,
     continents: allContinentCodes.slice(),
     transcontinental,
     transcontinentalDisplay: transcontinental ? (splitRule ? 'continent-part' : 'whole-country-in-both') : null,
     playable,
     excludedReason: isAntarctica ? 'no-sovereign-country-puzzle'
+      : teachingExcluded ? 'teaching-exclusion'
       : dependentTerritory ? 'overseas-territory'
       : oceaniaRestricted ? 'not-in-oceania-whitelist'
       : !iso2 ? 'no-iso-code'
@@ -496,6 +508,22 @@ export function normalizeWorldCountries(features, countryModule) {
     });
   });
 
+  Object.entries(PUZZLE_EXCLUDE_BY_CONTINENT).forEach(([code, iso2s]) => {
+    iso2s.forEach(iso2 => {
+      if (grouped.get(code).some(country => country.iso2 === iso2)) return;
+      const info = countryInfo(countryModule, iso2);
+      const name = ZH_HANT_BY_ALPHA2[iso2] || info?.name || iso2;
+      const nameEn = info?.name || iso2;
+      grouped.get(code).push({
+        id: `omitted-${iso2}-${code}`, sourceId: `omitted-${iso2}`, iso2,
+        name, nameEn, displayName: name, displayNameEn: nameEn,
+        continent: code, continents: [code], transcontinental: false,
+        transcontinentalDisplay: null, playable: false,
+        excludedReason: 'teaching-exclusion', displayTrimmed: false, geometry: null
+      });
+    });
+  });
+
   // Some microstates can disappear entirely from the Natural Earth resolution used
   // by world-atlas. They still need to be named explicitly in the teaching note,
   // rather than being silently omitted.
@@ -530,7 +558,7 @@ export function normalizeWorldCountries(features, countryModule) {
     const playableCount = countries.filter(country => country.playable).length;
     const excludedGroups = buildExcludedGroups(countries);
     const displayTrimmedCountries = Array.from(new Set(countries.filter(country => country.displayTrimmed && !country.transcontinental).map(country => country.name))).sort((a,b) => a.localeCompare(b,'zh-Hant'));
-    const transcontinentalCountries = Array.from(new Set(countries.filter(country => country.transcontinental).map(country => country.name))).sort((a,b) => a.localeCompare(b,'zh-Hant'));
+    const transcontinentalCountries = Array.from(new Set(countries.filter(country => country.transcontinental).map(country => country.displayName))).sort((a,b) => a.localeCompare(b,'zh-Hant'));
     return {
       id: item.id, code: item.code, name: item.name, nameEn: item.nameEn,
       projection: { type: 'Equal Earth', centerLon: profile.centerLon, fitPadding: profile.fitPadding, scaleBoost: profile.scaleBoost || 1 },

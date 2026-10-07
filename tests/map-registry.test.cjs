@@ -7,7 +7,7 @@ test('registry has unique ids', () => {
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('Taiwan, China and World modules are ready in v1.05.8', () => {
+test('Taiwan, China and World modules are ready in v1.05.9', () => {
   assert.deepEqual(registry.readyMaps().map(m => m.id), ['taiwan', 'china-provincial', 'world']);
   assert.equal(registry.isReady('taiwan'), true);
   assert.equal(registry.isReady('china-provincial'), true);

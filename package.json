@@ -1,8 +1,8 @@
 {
   "name": "t-map",
-  "version": "1.5.8",
+  "version": "1.5.9",
   "private": true,
-  "description": "T map v1.05.8 修正版 - 東帝汶僅保留亞洲、大洋洲 7 區白名單與部署驗證修正",
+  "description": "T map v1.05.9 - 拼圖文字避讓、亞洲不拼圖名單與跨洲國名標示",
   "scripts": {
     "build": "node scripts/build.mjs",
     "verify": "node scripts/verify.mjs",

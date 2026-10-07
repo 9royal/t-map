@@ -188,6 +188,60 @@ test('requested transcontinental countries appear in both adjacent continent puz
   assert.equal(geEu.transcontinentalDisplay, 'whole-country-in-both');
 });
 
+test('transcontinental names show the current continent while preserving stable progress names', async () => {
+  const mod = await load();
+  const {features,countryModule} = fixture();
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  for (const continent of out.continents) {
+    for (const country of continent.countries.filter(c=>c.transcontinental)) {
+      assert.equal(country.displayName, `${country.name}(${continent.name}部分)`);
+      assert.equal(country.displayNameEn, `${country.nameEn} (${continent.nameEn} part)`);
+      assert.equal(country.name.includes('部分'), false, 'saved progress uses the original name');
+    }
+  }
+  const euRussia = out.continents.find(x=>x.code==='EU').countries.find(x=>x.iso2==='RU');
+  const asRussia = out.continents.find(x=>x.code==='AS').countries.find(x=>x.iso2==='RU');
+  assert.equal(euRussia.name, asRussia.name);
+  assert.notEqual(euRussia.displayName, asRussia.displayName);
+});
+
+test('Asia teaching exclusions remain listed even when all four geometries are missing', async () => {
+  const mod = await load();
+  const {features,countryModule} = fixture();
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  const asia = out.continents.find(x=>x.code==='AS');
+  const expected = ['IO','MO','HK','PS'];
+  for (const iso2 of expected) {
+    const entries = asia.countries.filter(c=>c.iso2===iso2);
+    assert.equal(entries.length, 1);
+    assert.equal(entries[0].playable, false);
+    assert.equal(entries[0].geometry, null);
+    assert.equal(entries[0].excludedReason, 'teaching-exclusion');
+  }
+  const group = asia.excludedGroups.find(x=>x.reason==='teaching-exclusion');
+  assert.deepEqual(new Set(group.names), new Set(['英屬印度洋領地','澳門','香港','巴勒斯坦']));
+});
+
+test('real atlas excludes the four requested Asia regions and keeps their first-layer outlines', async () => {
+  const mod = await load();
+  const countryModule = await import('countries-list');
+  const topology = require('world-atlas/countries-50m.json');
+  const features = require('topojson-client').feature(topology, topology.objects.countries).features;
+  const out = mod.normalizeWorldCountries(features,countryModule);
+  const asia = out.continents.find(x=>x.code==='AS');
+  const world = mod.normalizeWorldMap(features,countryModule);
+  for (const iso2 of ['IO','MO','HK','PS']) {
+    const country = asia.countries.find(c=>c.iso2===iso2);
+    assert.ok(country);
+    assert.equal(country.playable, false);
+    assert.equal(country.geometry, null);
+    assert.equal(country.excludedReason, 'teaching-exclusion');
+    assert.equal(out.continents.some(x=>x.countries.some(c=>c.iso2===iso2 && c.playable)), false);
+    assert.ok(world.continents.find(x=>x.code==='AS').features.some(f=>f.iso2===iso2));
+  }
+  assert.equal(asia.playableCount, asia.countries.filter(c=>c.playable).length);
+});
+
 test('Europe removes remote overseas components from the displayed country geometry', async () => {
   const mod = await load();
   const {features,countryModule} = fixture();
